@@ -1,0 +1,82 @@
+# Golden Raspberry Awards API
+
+API RESTful que expõe a lista de indicados e vencedores da categoria **Pior Filme** do
+Golden Raspberry Awards.
+
+Na inicialização, a aplicação lê um arquivo CSV e carrega os dados em um banco **SQLite em
+memória**. O banco é recriado a cada execução, portanto nenhuma instalação de SGBD é
+necessária. O endpoint principal retorna os produtores com o menor e o maior intervalo entre
+duas premiações consecutivas.
+
+## Pré-requisitos
+
+- **Node.js** na versão indicada em [`.nvmrc`](./.nvmrc) (linha LTS 24). Com `nvm` instalado:
+
+  ```bash
+  nvm install
+  nvm use
+  ```
+
+- **npm** 10 ou superior (já incluído no Node 24).
+
+Não é preciso instalar banco de dados: o SQLite é embarcado via `better-sqlite3`.
+
+## Instalação
+
+```bash
+npm install
+```
+
+## Como rodar
+
+```bash
+npm run start:dev    # desenvolvimento, com watch
+npm run start        # execução simples
+npm run build        # compila para dist/
+npm run start:prod   # executa o build de dist/
+```
+
+Com a aplicação de pé, a documentação interativa (Swagger UI) fica disponível em
+<http://localhost:3000/api-docs> e o documento OpenAPI em
+<http://localhost:3000/api-docs-json>.
+
+## Como rodar os testes
+
+O projeto tem **apenas testes de integração (e2e)**, que sobem a aplicação completa e a
+exercitam via HTTP. Cada cenário usa sua própria fixture CSV, apontada por
+`MOVIELIST_CSV_PATH`.
+
+```bash
+npm run test:e2e
+```
+
+Outros comandos úteis:
+
+```bash
+npm run lint         # ESLint + Prettier
+npm run format       # formata src/ e test/
+```
+
+## Variáveis de ambiente
+
+Todas são opcionais e validadas no bootstrap: um valor inválido impede a aplicação de subir,
+com mensagem explicando o problema.
+
+| Variável              | Padrão               | Descrição                                            |
+| --------------------- | -------------------- | ---------------------------------------------------- |
+| `PORT`                | `3000`               | Porta HTTP da aplicação. Inteiro entre 1 e 65535.    |
+| `MOVIELIST_CSV_PATH`  | `data/Movielist.csv` | Caminho do CSV carregado na inicialização.           |
+
+Os valores podem ser definidos no ambiente ou em um arquivo `.env` na raiz do projeto.
+
+```bash
+MOVIELIST_CSV_PATH=data/Movielist.csv PORT=3000 npm run start:dev
+```
+
+## Endpoints
+
+<!-- Preenchido conforme os endpoints forem implementados. -->
+
+## Decisões técnicas
+
+<!-- Preenchido conforme as decisões forem tomadas. -->

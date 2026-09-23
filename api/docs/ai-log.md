@@ -423,8 +423,10 @@ Não altere comportamento nem implemente nada novo nesta etapa. Se encontrar um 
 inconsistência, não corrija por conta própria: liste no relatório final para eu decidir.
 
 ## 1. README.md
+
 Complete o README lendo o código para confirmar cada informação. Não documente nada que você não
 tenha verificado no repositório.
+
 - Descrição do projeto e stack utilizada.
 - Pré-requisitos (versão do Node) e instalação.
 - Como rodar a aplicação e como rodar os testes de integração, com os comandos exatos do package.json.
@@ -437,7 +439,7 @@ tenha verificado no repositório.
   - escopo mantido no requisito solicitado, com um único endpoint, e como a API atende ao nível 2 de
     maturidade de Richardson;
   - `min` e `max` numa mesma resposta, conforme o formato especificado no enunciado;
-  - separação de produtores por `, and`, `,` e ` and `;
+  - separação de produtores por `, and`, `,` e `and`;
   - intervalos entre vitórias consecutivas, empates retornando todos os registros e ordenação
     determinística;
   - duas vitórias no mesmo ano gerando intervalo 0;
@@ -449,7 +451,9 @@ tenha verificado no repositório.
 - Seção "Testes": o que cada arquivo de teste cobre e quais fixtures existem, com uma linha por cenário.
 
 ## 2. Revisão final
+
 Verifique e relate, sem corrigir:
+
 - se todos os requisitos do enunciado estão atendidos, um a um;
 - se restou código morto, import não utilizado, `console.log`, `any` ou TODO;
 - se existe algum `*.spec.ts` em `src/`;
@@ -458,6 +462,7 @@ Verifique e relate, sem corrigir:
 - a saída de `git log --oneline`, apontando commits com mensagem fora do padrão Conventional Commits.
 
 # Critérios de aceite
+
 - README permite que alguém sem contexto clone, rode e teste o projeto apenas seguindo as instruções.
 - Nenhuma alteração em arquivos de `src/` ou `test/`.
 ```
@@ -517,8 +522,6 @@ Verifique e relate, sem corrigir:
 - Verificações: `npm run build`, `npm run lint` e `npm run test:e2e` (21 testes, 3 suítes)
   passaram. Nenhum comportamento foi alterado.
 
-**Ajustes manuais:**
-
 ---
 
 ## 2026-09-23 — `winner` "grudento" na deduplicação de linhas
@@ -527,7 +530,7 @@ Verifique e relate, sem corrigir:
 
 **Prompt:**
 
-````markdown
+```markdown
 Leia o CLAUDE.md antes de começar.
 
 # Tarefa: tornar o `winner` "grudento" na deduplicação de linhas
@@ -541,6 +544,7 @@ A deduplicação deve continuar existindo: ela evita que uma linha repetida de u
 conte duas vitórias no mesmo ano e gere um intervalo 0 falso.
 
 ## Mudança
+
 - A chave de duplicidade continua sendo `year`, `title`, `studios` e `producers`, com as listas de
   nomes comparadas como conjuntos.
 - Continua sendo gravada apenas a primeira ocorrência, com os seus `studios` e `producers`.
@@ -553,6 +557,7 @@ conte duas vitórias no mesmo ano e gere um intervalo 0 falso.
   refletir o flag final.
 
 ## Testes
+
 - Atualize `test/fixtures/duplicate-rows.csv` e o cenário correspondente em
   `test/csv-import.e2e-spec.ts` para cobrir, além dos casos já existentes:
   - duplicata com `winner = yes` **depois** de uma linha sem `winner`: o filme fica como vencedor,
@@ -566,18 +571,20 @@ conte duas vitórias no mesmo ano e gere um intervalo 0 falso.
   pela nova regra. Nenhum outro teste pode ser alterado.
 
 ## Documentação
+
 - `CLAUDE.md`, em "Regras de negócio": atualize a regra de linhas duplicadas.
 - `README.md`, na descrição do formato do CSV: o texto atual diz que vale a primeira ocorrência
   "inclusive o seu `winner`"; corrija para a nova regra, explicando o motivo.
 
 # Critérios de aceite
+
 - `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros.
 - Com `data/Movielist.csv` o resultado do endpoint permanece inalterado:
   min = Joel Silver (1, 1990 → 1991), max = Matthew Vaughn (13, 2002 → 2015).
 - As contagens da importação com `data/Movielist.csv` continuam em 206 filmes, 42 vencedores,
   359 produtores e 59 estúdios.
 - Nenhum `*.spec.ts` foi criado em `src/`.
-````
+```
 
 **Resultado:**
 
@@ -605,3 +612,29 @@ conte duas vitórias no mesmo ano e gere um intervalo 0 falso.
   42 vencedores, 359 produtores e 59 estúdios).
 
 **Ajustes manuais:**
+
+---
+
+## 2026-09-23 — Ajuste manual: regras de lint
+
+**Ferramenta:** nenhuma (edição manual)
+
+**Prompt:** nenhum (edição manual)
+
+**Ajustes manuais:**
+
+- As regras de lint foram alinhadas à convenção declarada no `CLAUDE.md` ("sem `any`").
+  `@typescript-eslint/no-explicit-any` estava com `'off'` no `eslint.config.mjs`, herdado do
+  template do Nest CLI: a regra foi removida do bloco de overrides, de modo que volta a valer
+  como erro pelo preset `recommendedTypeChecked`. Nenhum `any` existia em `src/` ou `test/`,
+  então a mudança não exigiu alteração de código; ela impede que a convenção seja violada sem
+  que o lint acuse. `@typescript-eslint/no-floating-promises` e
+  `@typescript-eslint/no-unsafe-argument` passaram de `'warn'` para `'error'` pelo mesmo motivo:
+  o código já as respeita, e um aviso que não quebra o lint não protege nada. As aspas duplas de
+  `"prettier/prettier"` foram padronizadas para aspas simples, já que o `eslint.config.mjs` está
+  na lista de `ignores` e não é formatado pelo Prettier.
+- Foi adicionado o script `lint:check` ao `package.json`, com o mesmo comando do `lint` mas sem
+  `--fix`. O `lint` existente altera arquivos ao ser executado, o que não serve para verificação
+  em ambiente de integração contínua nem para conferir o estado do repositório sem modificá-lo.
+- Verificações: `npm run lint:check`, `npm run build` e `npm run test:e2e` passaram sem erros e
+  sem alterações em arquivos.

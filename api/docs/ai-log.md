@@ -700,3 +700,115 @@ passa a ser documentado.
   `[Bootstrap] Application is running on ...` e `[Bootstrap] Swagger UI is available at ...`.
 
 **Ajustes manuais:**
+
+---
+
+## 2026-09-23 — Tratamento de erros na importação e no bootstrap
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+```markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: tratamento de erros na importação e no bootstrap
+
+Três correções relacionadas, sem mudança de comportamento em caminho feliz.
+
+## 1. Erros do parser do CSV
+Em `src/csv-import/csv-import.service.ts`, o `try/catch` de `readCsv` cobre apenas o `readFile`.
+A chamada a `parse()` fica de fora, então um arquivo existente mas malformado (aspas
+desbalanceadas, por exemplo) propaga o erro cru do `csv-parse`, sem citar o caminho do arquivo
+nem `MOVIELIST_CSV_PATH`, ao contrário das demais falhas de importação.
+
+- Crie uma classe de erro própria, `CsvImportError`, e use-a em todas as falhas de importação
+  que a aplicação já reporta hoje (arquivo ilegível, arquivo vazio, coluna obrigatória
+  ausente), mantendo exatamente as mensagens atuais.
+- Envolva a chamada a `parse()` em `try/catch`. Um `CsvImportError` vindo do callback `columns`
+  deve ser repassado sem alteração; qualquer outro erro é embrulhado num `CsvImportError` cuja
+  mensagem cite o caminho do arquivo, mencione `MOVIELIST_CSV_PATH` e preserve a mensagem
+  original.
+- Ao embrulhar um erro, preserve a causa com `new Error(msg, { cause: error })` (ou o
+  equivalente na classe criada), sem incluir o stack na mensagem exibida.
+
+## 2. Falha de bootstrap
+`src/main.ts` faz `void bootstrap()`, então uma falha de inicialização aparece como unhandled
+rejection, com stack do Node em vez da mensagem preparada. Trate a rejeição: logue a mensagem
+do erro pelo `Logger` (com o stack apenas como detalhe secundário) e encerre com
+`process.exit(1)`. O código de saída em falha continua diferente de zero, agora por decisão
+explícita.
+
+## 3. Testes
+Em `test/csv-import.e2e-spec.ts`, mantendo os cenários existentes e suas asserções:
+- acrescente uma fixture com CSV malformado (aspas desbalanceadas) e verifique que a
+  inicialização falha com um erro cuja mensagem cita o caminho do arquivo e
+  `MOVIELIST_CSV_PATH`;
+- acrescente uma fixture de arquivo vazio, se ainda não houver, verificando a mensagem
+  correspondente;
+- ajuste os cenários de falha existentes, se necessário, para afirmar que o erro é uma instância
+  de `CsvImportError`, sem alterar as mensagens verificadas.
+
+# Restrições
+- Não altere o parser de nomes, o cálculo dos intervalos nem o endpoint.
+- Não crie `ExceptionFilter` global: com um único `GET` sem parâmetros, o filtro padrão do Nest
+  já basta.
+
+# Critérios de aceite
+- `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros.
+- Com `data/Movielist.csv`, a aplicação sobe normalmente e o resumo da importação permanece
+  inalterado (206 filmes, 42 vencedores, 359 produtores e 59 estúdios).
+- Apontando `MOVIELIST_CSV_PATH` para um arquivo inexistente, a saída mostra a mensagem tratada,
+  sem `UnhandledPromiseRejection`, e `echo $?` retorna 1.
+- Nenhum `*.spec.ts` foi criado em `src/`.
+```
+
+**Resultado:**
+
+- `src/csv-import/csv-import.error.ts` (novo): `CsvImportError extends Error`, com
+  `override readonly name = 'CsvImportError'`. A causa é passada pelo `ErrorOptions` nativo
+  (`{ cause }`).
+- `src/csv-import/csv-import.service.ts`: as falhas de arquivo ilegível, arquivo vazio e coluna
+  ausente passam a lançar `CsvImportError`, com as mesmas mensagens; a de arquivo ilegível agora
+  também guarda o erro original em `cause`. A chamada a `parse()` ganhou `try/catch`: um
+  `CsvImportError` (vindo do callback `columns`, que o `csv-parse` repassa sem alteração) é
+  relançado como está; os demais viram `CsvImportError` com a mensagem
+  `Could not parse the movie list CSV file at "<caminho>" (check MOVIELIST_CSV_PATH): <mensagem original>`
+  e o erro original em `cause`.
+- `src/main.ts`: `void bootstrap()` foi trocado por `bootstrap().catch(...)`, que registra
+  `Application failed to start: <mensagem>` pelo `Logger` com o stack como segundo argumento e
+  chama `process.exit(1)`.
+- `test/utils/create-test-app.ts`: o carregamento isolado dos módulos e a inicialização foram
+  separados em funções internas, e foi criada `captureStartupError`, que devolve o erro de
+  inicialização junto com a classe `CsvImportError` carregada no mesmo registro de módulos.
+  Como a aplicação roda em `jest.isolateModules`, a classe importada diretamente pelo teste
+  seria outra e o `instanceof` falharia.
+- `test/csv-import.e2e-spec.ts`: os cenários de falha passaram a usar `captureStartupError` e a
+  verificar `toBeInstanceOf(CsvImportError)` e a mesma mensagem de antes. Foram adicionados os
+  cenários de arquivo vazio (`test/fixtures/empty.csv`) e de CSV malformado
+  (`test/fixtures/malformed.csv`, aspas não fechadas), este verificando também
+  `cause.code === 'CSV_QUOTE_NOT_CLOSED'`.
+- Verificações: `npm run build`, `npm run lint`, `npm run lint:check` e `npm run test:e2e`
+  (24 testes, 3 suítes) passaram. Com o CSV padrão, a importação registra 206 filmes
+  (42 vencedores), 359 produtores e 59 estúdios. Com um caminho inexistente ou com o CSV
+  malformado, a saída mostra `[Bootstrap] Application failed to start: ...` seguido do stack,
+  sem `UnhandledPromiseRejection`, e o código de saída é 1.
+
+**Ajustes manuais:**
+
+- O helper `captureStartupError` foi removido e `test/utils/create-test-app.ts` voltou à forma
+  anterior, com uma única função exportada (`createTestApp`). O ganho da asserção de
+  `instanceof` não compensava a complexidade acrescentada ao helper de teste.
+- `CsvImportError` passou a ter um construtor explícito `(message, options?: ErrorOptions)`,
+  que chama `super(message, options)` e define `this.name = 'CsvImportError'`. Além de permitir
+  a verificação do tipo pelo nome nos testes, o log de falha passa a exibir
+  `CsvImportError: ...` na linha do stack.
+- Em `test/csv-import.e2e-spec.ts`, os cenários de falha voltaram a usar `createTestApp`
+  diretamente: mantêm a verificação da mensagem com `rejects.toThrow(...)` e verificam o tipo
+  com `rejects.toMatchObject({ name: 'CsvImportError' })`. As asserções usam a mesma promise,
+  então a aplicação é iniciada uma única vez por cenário. O cenário do CSV malformado mantém a
+  verificação `rejects.toHaveProperty('cause.code', 'CSV_QUOTE_NOT_CLOSED')`, que garante a
+  preservação da causa.
+- Verificações após os ajustes: `npm run build`, `npm run lint` e `npm run test:e2e`
+  (24 testes, 3 suítes) passaram; com um caminho inexistente, a aplicação encerra com a mensagem
+  tratada e código de saída 1.

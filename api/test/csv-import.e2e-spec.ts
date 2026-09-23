@@ -322,16 +322,45 @@ describe('CSV import (e2e)', () => {
   describe('with an invalid file', () => {
     it('fails to start when the file does not exist', async () => {
       const csvPath = fixturePath('does-not-exist.csv');
+      const startup = createTestApp(csvPath);
 
-      await expect(createTestApp(csvPath)).rejects.toThrow(
+      await expect(startup).rejects.toThrow(
         `Could not read the movie list CSV file at "${csvPath}" (check MOVIELIST_CSV_PATH)`,
       );
+      await expect(startup).rejects.toMatchObject({ name: 'CsvImportError' });
+    });
+
+    it('fails to start when the file is empty', async () => {
+      const csvPath = fixturePath('empty.csv');
+      const startup = createTestApp(csvPath);
+
+      await expect(startup).rejects.toThrow(
+        `The movie list CSV file at "${csvPath}" is empty.`,
+      );
+      await expect(startup).rejects.toMatchObject({ name: 'CsvImportError' });
     });
 
     it('fails to start when a required column is missing', async () => {
-      await expect(
-        createTestApp(fixturePath('missing-column.csv')),
-      ).rejects.toThrow('is missing the required column(s): winner.');
+      const startup = createTestApp(fixturePath('missing-column.csv'));
+
+      await expect(startup).rejects.toThrow(
+        'is missing the required column(s): winner.',
+      );
+      await expect(startup).rejects.toMatchObject({ name: 'CsvImportError' });
+    });
+
+    it('fails to start when the file is malformed, keeping the parser error as the cause', async () => {
+      const csvPath = fixturePath('malformed.csv');
+      const startup = createTestApp(csvPath);
+
+      await expect(startup).rejects.toThrow(
+        `Could not parse the movie list CSV file at "${csvPath}" (check MOVIELIST_CSV_PATH): Quote Not Closed`,
+      );
+      await expect(startup).rejects.toMatchObject({ name: 'CsvImportError' });
+      await expect(startup).rejects.toHaveProperty(
+        'cause.code',
+        'CSV_QUOTE_NOT_CLOSED',
+      );
     });
   });
 });

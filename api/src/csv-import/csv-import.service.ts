@@ -12,6 +12,7 @@ import {
   Studio,
 } from '../movies/entities';
 import { Producer } from '../producers/entities';
+import { CsvImportError } from './csv-import.error';
 import { parseNameList } from './name-list.parser';
 
 const REQUIRED_COLUMNS = [
@@ -73,30 +74,44 @@ export class CsvImportService implements OnApplicationBootstrap {
     try {
       content = await readFile(filePath);
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(
+      throw new CsvImportError(
         `Could not read the movie list CSV file at "${filePath}" ` +
-          `(check MOVIELIST_CSV_PATH): ${reason}`,
+          `(check MOVIELIST_CSV_PATH): ${errorMessage(error)}`,
+        { cause: error },
       );
     }
 
     let hasHeader = false;
-    const rows = parse<CsvRow>(content, {
-      delimiter: ';',
-      bom: true,
-      trim: true,
-      skip_empty_lines: true,
-      skip_records_with_empty_values: true,
-      relax_column_count: true,
-      info: true,
-      columns: (header: string[]) => {
-        hasHeader = true;
-        return this.mapHeader(header, filePath);
-      },
-    });
+    let rows: CsvRow[];
+    try {
+      rows = parse<CsvRow>(content, {
+        delimiter: ';',
+        bom: true,
+        trim: true,
+        skip_empty_lines: true,
+        skip_records_with_empty_values: true,
+        relax_column_count: true,
+        info: true,
+        columns: (header: string[]) => {
+          hasHeader = true;
+          return this.mapHeader(header, filePath);
+        },
+      });
+    } catch (error) {
+      if (error instanceof CsvImportError) {
+        throw error;
+      }
+      throw new CsvImportError(
+        `Could not parse the movie list CSV file at "${filePath}" ` +
+          `(check MOVIELIST_CSV_PATH): ${errorMessage(error)}`,
+        { cause: error },
+      );
+    }
 
     if (!hasHeader) {
-      throw new Error(`The movie list CSV file at "${filePath}" is empty.`);
+      throw new CsvImportError(
+        `The movie list CSV file at "${filePath}" is empty.`,
+      );
     }
 
     return rows;
@@ -109,7 +124,7 @@ export class CsvImportService implements OnApplicationBootstrap {
     );
 
     if (missing.length > 0) {
-      throw new Error(
+      throw new CsvImportError(
         `The movie list CSV file at "${filePath}" is missing the required ` +
           `column(s): ${missing.join(', ')}. Expected header: ${REQUIRED_COLUMNS.join(';')}.`,
       );
@@ -300,6 +315,10 @@ function duplicateKey({ year, title, studios, producers }: MovieRow): string {
     [...studios].sort(),
     [...producers].sort(),
   ]);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function chunk<T>(items: T[], size: number): T[][] {

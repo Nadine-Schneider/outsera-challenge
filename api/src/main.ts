@@ -20,4 +20,12 @@ async function bootstrap(): Promise<void> {
   );
 }
 
-void bootstrap();
+bootstrap().catch((error: unknown) => {
+  const logger = new Logger('Bootstrap');
+  if (error instanceof Error) {
+    logger.error(`Application failed to start: ${error.message}`, error.stack);
+  } else {
+    logger.error(`Application failed to start: ${String(error)}`);
+  }
+  process.exit(1);
+});

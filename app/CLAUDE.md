@@ -24,7 +24,7 @@ então o diferencial está nos detalhes, não no volume de código.
 - `provideHttpClient` + `httpResource` para consumo da API (estável no v22)
 - Bootstrap 5 **apenas o CSS**, para reproduzir o layout dos anexos; sem ng-bootstrap e sem Angular Material
 - Vitest (runner padrão do Angular CLI) + `HttpTestingController` para os testes
-- ESLint (angular-eslint) + Prettier, Husky + lint-staged, GitHub Actions
+- ESLint (angular-eslint) + Prettier 
 
 ## Comandos
 

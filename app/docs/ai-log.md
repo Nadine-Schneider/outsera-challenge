@@ -547,3 +547,118 @@ Específicos:
   por recorte e continua acessível a leitores de tela), não `display: none`. Como o teste de
   rota pode se ancorar no título visível do primeiro painel ("List years with multiple
   winners"), o `<h1>` foi removido e o teste em `app.routes.spec.ts` foi atualizado.
+
+---
+
+## 2026-09-23 — Painel de busca de vencedores por ano
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: painel de busca de vencedores por ano
+Nesta etapa, apenas o quarto painel do dashboard, substituindo o placeholder deixado na
+etapa anterior. Não altere os outros painéis nem comece a lista de filmes.
+
+1. `WinnersByYearPanel` em `features/dashboard/panels/`, com `PanelComponent` como invólucro
+   e título "List movie winners by year".
+
+2. Formulário de busca, conforme o anexo 1: um campo de texto com placeholder
+   "Search by year" e um botão ao lado com ícone de lupa.
+   - A busca dispara no clique do botão **e** ao pressionar Enter no campo. Não há debounce
+     nem busca automática ao digitar: este painel é acionado explicitamente pelo usuário.
+   - O campo aceita apenas dígitos (`inputmode="numeric"`), com no máximo 4 caracteres.
+   - Validação: só dispara com exatamente 4 dígitos. Com valor inválido ou vazio, o botão
+     fica desabilitado e nenhuma requisição é feita.
+   - O campo tem rótulo acessível (`aria-label`), já que não há `<label>` visível no anexo.
+
+3. Estado e requisição:
+   - Mantenha um signal com o termo digitado e outro com o ano efetivamente submetido.
+     Apenas o segundo alimenta o `rxResource`.
+   - O `params` do `rxResource` retorna `undefined` enquanto nenhum ano válido foi submetido,
+     de modo que **nenhuma requisição é disparada na inicialização**. Não use flag booleana
+     nem `if` no componente para controlar isso.
+   - Submeter o mesmo ano duas vezes deve refazer a busca (use `reload()` quando o valor
+     submetido não mudou).
+
+4. Resultado:
+   - `DataTableComponent` com as colunas Id, Year e Title, conforme o anexo 1.
+   - Os cabeçalhos da tabela ficam visíveis desde o início, mesmo antes da primeira busca.
+   - Três estados distintos, com mensagens diferentes:
+     - antes de qualquer busca: `EmptyStateComponent` com uma mensagem convidando a buscar
+       (este é o uso previsto para o componente, que ainda não estava sendo usado);
+     - busca feita e ano sem vencedores: mensagem informando que o ano não tem vencedores,
+       incluindo o ano buscado;
+     - erro: `ErrorStateComponent` com a mensagem do `AppHttpError` e botão "Try again" que
+       refaz a busca do ano atual.
+   - O serviço já normaliza a resposta para `Movie[]`; o painel não trata objeto único.
+
+# Testes
+`provideHttpClientTesting` e `HttpTestingController`, com o mesmo padrão de sincronização
+zoneless usado na tarefa anterior.
+
+- nenhuma requisição é feita ao inicializar o painel
+- o botão começa desabilitado e permanece desabilitado com 1, 2 ou 3 dígitos
+- com 4 dígitos, o botão habilita e o clique dispara `GET /winnersByYear?year=...` com o
+  ano correto
+- Enter no campo dispara a mesma requisição que o clique
+- resposta com filmes renderiza uma linha por filme, com Id, Year e Title
+- resposta vazia mostra a mensagem específica de "ano sem vencedores", não a mensagem
+  inicial
+- antes de qualquer busca, aparece a mensagem inicial
+- erro 500 mostra o estado de erro, e "Try again" refaz a requisição do mesmo ano
+- buscar um segundo ano substitui o resultado anterior
+
+# Critérios de aceite
+- `npm run lint`, `npm test` e `npm run build` passam sem erros.
+- `httpMock.verify()` no `afterEach`, e nenhuma requisição pendente ao inicializar.
+- Nenhum `any` no código de produção.
+- Rodando `npm start`, buscar 1986 traz dois vencedores e buscar 1987 traz um.
+- O painel não quebra em 768x1280 nem em 360x800.
+````
+
+**Resultado:**
+
+- `WinnersByYearPanel` em `features/dashboard/panels/winners-by-year/`, dentro de
+  `PanelComponent` com o título "List movie winners by year", substituindo o placeholder no
+  `DashboardPage`.
+- Campo com `inputmode="numeric"`, `maxlength="4"`, placeholder "Search by year" e
+  `aria-label="Search winners by year"`; botão com ícone de lupa em SVG inline (sem biblioteca de
+  ícones) e `aria-label="Search"`. O handler de `input` remove tudo que não é dígito e escreve o
+  valor limpo de volta no elemento.
+- Estado: `term` (o que foi digitado) e `submittedYear` (o último ano submetido). Só o segundo
+  alimenta o `rxResource`, cujo `params` devolve `undefined` até a primeira busca, então nada é
+  requisitado na inicialização. `search()` (clique e `keydown.enter`) ignora termos inválidos;
+  se o ano submetido for igual ao atual, chama `reload()`, senão atualiza o signal.
+- Estados: loading → erro (`ErrorStateComponent` com a mensagem do `AppHttpError` e `reload()`
+  no "Try again") → tabela Id/Year/Title. Os cabeçalhos aparecem desde o início; a linha vazia
+  mostra um `EmptyStateComponent` com "Enter a year to see its winners" antes da primeira busca
+  e "No winners found for {ano}" depois de uma busca sem resultados.
+- `DataTableComponent` ganhou um slot `[appTableEmpty]` dentro da célula de linha vazia, com o
+  `emptyMessage` como conteúdo de fallback do `<ng-content>`; os usos existentes não mudam.
+  Dois testes novos no spec da tabela cobrem o slot.
+- Spec do painel com 12 testes (nenhuma requisição no init, botão desabilitado com 0 a 3
+  dígitos, Enter com valor incompleto não busca, filtragem de não dígitos, clique e Enter
+  disparam `GET /winnersByYear?year=...`, linhas renderizadas, mensagem de ano sem vencedores,
+  erro 500 com retry do mesmo ano, segundo ano substitui o primeiro, mesmo ano duas vezes refaz
+  a requisição). As fixtures usam os dados reais da API (ids 36, 37 e 41).
+- 126 testes passando; `npm run lint`, `npm run build` e `prettier --check` sem erros.
+- Verificado com `ng serve` e Chrome headless via DevTools Protocol, em 768x1280 e 360x800:
+  estado inicial com botão desabilitado, 1986 por clique traz dois vencedores, 1987 por Enter
+  traz um, e a página não tem rolagem horizontal.
+
+**Ajustes manuais:**
+
+- **Busca por `<form>` com `(ngSubmit)`.** O `(keydown.enter)` no campo foi removido. O campo e
+  o botão ficam dentro de um `<form class="input-group" role="search" (ngSubmit)="search()">`,
+  com o botão em `type="submit"`, e o submit do form passa a ser o único caminho da busca, pelo
+  Enter e pelo clique. O painel importa `FormsModule` para ter o `ngSubmit`; o `NgForm` também
+  cancela o submit nativo, então a página não navega. A guarda `if (!isValidTerm())` continua no
+  `search()`. Nos testes, o clique usa `button.click()`, que submete o form. O Enter usa
+  `form.requestSubmit()`, porque o jsdom não implementa o envio implícito. Um teste dispara
+  `submit` direto no form com "198", passando por cima do botão desabilitado, e confirma que a
+  guarda não deixa sair requisição. No Chrome, via DevTools Protocol, um Enter de verdade no
+  campo buscou 1987, e com "198" nada foi requisitado.

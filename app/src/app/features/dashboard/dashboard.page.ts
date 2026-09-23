@@ -1,13 +1,13 @@
 import { Component } from '@angular/core';
 
-import { PanelComponent } from '../../shared/ui/panel/panel';
 import { MultipleWinnersPanel } from './panels/multiple-winners/multiple-winners-panel';
 import { ProducerIntervalsPanel } from './panels/producer-intervals/producer-intervals-panel';
 import { TopStudiosPanel } from './panels/top-studios/top-studios-panel';
+import { WinnersByYearPanel } from './panels/winners-by-year/winners-by-year-panel';
 
 @Component({
   selector: 'app-dashboard-page',
-  imports: [PanelComponent, MultipleWinnersPanel, TopStudiosPanel, ProducerIntervalsPanel],
+  imports: [MultipleWinnersPanel, TopStudiosPanel, ProducerIntervalsPanel, WinnersByYearPanel],
   template: `
     <div class="row g-3">
       <div class="col-12 col-lg-6">
@@ -20,8 +20,7 @@ import { TopStudiosPanel } from './panels/top-studios/top-studios-panel';
         <app-producer-intervals-panel />
       </div>
       <div class="col-12 col-lg-6">
-        <!-- Placeholder: the winners by year search is implemented in the next step. -->
-        <app-panel class="h-100" title="List movie winners by year" />
+        <app-winners-by-year-panel />
       </div>
     </div>
   `,

@@ -18,7 +18,7 @@
       } @empty {
         <tr>
           <td class="text-center text-body-secondary" [attr.colspan]="columns().length">
-            {{ emptyMessage() }}
+            <ng-content select="[appTableEmpty]">{{ emptyMessage() }}</ng-content>
           </td>
         </tr>
       }

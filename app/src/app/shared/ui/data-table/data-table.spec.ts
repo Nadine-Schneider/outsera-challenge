@@ -52,6 +52,19 @@ class FilteredTableHost {
   readonly rows = STUDIOS;
 }
 
+@Component({
+  imports: [DataTableComponent],
+  template: `
+    <app-data-table [columns]="columns" [rows]="rows()" emptyMessage="Ignored">
+      <strong appTableEmpty>Search to see studios</strong>
+    </app-data-table>
+  `,
+})
+class CustomEmptyTableHost {
+  readonly columns = COLUMNS;
+  readonly rows = signal<readonly Studio[]>([]);
+}
+
 function textOf(elements: NodeListOf<Element>): string[] {
   return Array.from(elements).map((element) => element.textContent?.trim() ?? '');
 }
@@ -137,5 +150,34 @@ describe('DataTableComponent', () => {
     await fixture.whenStable();
 
     expect(element.querySelector('tbody td')?.textContent?.trim()).toBe('No records found');
+  });
+
+  describe('with projected empty content', () => {
+    let fixture: ComponentFixture<CustomEmptyTableHost>;
+    let element: HTMLElement;
+
+    beforeEach(async () => {
+      fixture = TestBed.createComponent(CustomEmptyTableHost);
+      element = fixture.nativeElement;
+      await fixture.whenStable();
+    });
+
+    it('renders the projected content in place of the empty message', () => {
+      const cell = element.querySelector('tbody td');
+
+      expect(cell?.getAttribute('colspan')).toBe('2');
+      expect(cell?.querySelector('strong[appTableEmpty]')?.textContent).toBe(
+        'Search to see studios',
+      );
+      expect(cell?.textContent).not.toContain('Ignored');
+    });
+
+    it('hides the projected content once there are rows', async () => {
+      fixture.componentInstance.rows.set(STUDIOS);
+      await fixture.whenStable();
+
+      expect(element.querySelectorAll('tbody tr')).toHaveLength(3);
+      expect(element.querySelector('[appTableEmpty]')).toBeNull();
+    });
   });
 });

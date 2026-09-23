@@ -212,8 +212,9 @@ describe('CSV import (e2e)', () => {
       await testApp.app.close();
     });
 
-    it('keeps only the first row of each title, year, studios and producers', async () => {
+    it('keeps one movie per title, year, studios and producers, a winner when any of its rows is', async () => {
       expect(await findMovies(testApp.dataSource)).toEqual([
+        // Two winning rows and a later row without winner: one winning movie.
         {
           year: 2000,
           title: 'Movie A',
@@ -248,6 +249,14 @@ describe('CSV import (e2e)', () => {
           winner: true,
           producers: ['Producer A', 'Producer B'],
           studios: ['Studio A'],
+        },
+        // A row without winner followed by a winning duplicate.
+        {
+          year: 2002,
+          title: 'Movie C',
+          winner: true,
+          producers: ['Producer C'],
+          studios: ['Studio C'],
         },
       ]);
     });

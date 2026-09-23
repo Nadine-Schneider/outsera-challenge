@@ -152,6 +152,30 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    // The 2003 win exists only in the second row of the movie, and its third
+    // row must not count the same win twice (interval 0).
+    name: 'a win only in a duplicate row',
+    csvPath: fixturePath('intervals-duplicate-winner.csv'),
+    expected: {
+      min: [
+        {
+          producer: 'Producer A',
+          interval: 3,
+          previousWin: 2000,
+          followingWin: 2003,
+        },
+      ],
+      max: [
+        {
+          producer: 'Producer A',
+          interval: 3,
+          previousWin: 2000,
+          followingWin: 2003,
+        },
+      ],
+    },
+  },
+  {
     name: 'no producer with two wins',
     csvPath: fixturePath('intervals-single-wins.csv'),
     expected: EMPTY_RESULT,

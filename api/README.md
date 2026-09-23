@@ -158,8 +158,12 @@ year;title;studios;producers;winner
   viram um só, vazios são descartados e repetições dentro do mesmo filme são removidas. Um
   mesmo nome em filmes diferentes corresponde a um único produtor (ou estúdio) no banco.
 - **Linhas duplicadas:** uma linha com mesmo `year`, `title`, `studios` e `producers` (a ordem
-  dos nomes não importa) de uma linha anterior é ignorada, com warning. Vale a primeira
-  ocorrência, inclusive o seu `winner`.
+  dos nomes não importa) de uma linha anterior é ignorada, com warning. É gravada só a primeira
+  ocorrência, com os seus estúdios e produtores, e o filme é vencedor quando **qualquer** uma
+  das ocorrências tiver `winner = yes`. Assim, uma linha repetida de um filme vencedor não conta
+  duas vitórias no mesmo ano (o que geraria um intervalo 0 falso), e uma vitória que aparece só
+  numa ocorrência posterior não é perdida em silêncio. Uma duplicata sem `yes` nunca desmarca
+  uma vitória, e o warning informa quando a duplicata promoveu o filme a vencedor.
 
 ## Endpoints
 
@@ -359,7 +363,7 @@ respostas do endpoint são comparadas por inteiro com `toEqual`.
 | `data/Movielist.csv`                                   | Arquivo padrão: 206 filmes, 42 vencedores, 359 produtores e 59 estúdios; min Joel Silver, max Matthew Vaughn. |
 | `test/fixtures/name-formats.csv`                       | Cabeçalho fora de ordem, com BOM e espaços; separadores `, and`, `,`, ` and ` em várias caixas; `winner` com variações. |
 | `test/fixtures/invalid-rows.csv`                       | Linhas sem ano, com ano não numérico ou sem título são ignoradas.                                        |
-| `test/fixtures/duplicate-rows.csv`                     | Linhas duplicadas (mesmo ano, título, estúdios e produtores) são ignoradas, mantendo a primeira.         |
+| `test/fixtures/duplicate-rows.csv`                     | Linhas duplicadas (mesmo ano, título, estúdios e produtores) são ignoradas, mantendo a primeira; o filme é vencedor se qualquer ocorrência for. |
 | `test/fixtures/missing-column.csv`                     | CSV sem a coluna `winner` impede a aplicação de subir.                                                   |
 | `test/fixtures/does-not-exist.csv` (não existe)        | Caminho inexistente impede a aplicação de subir, com mensagem citando `MOVIELIST_CSV_PATH`.              |
 | CSV gerado em diretório temporário                     | 1.201 filmes, forçando três lotes de insert; ids sequenciais e vínculos corretos.                        |
@@ -367,6 +371,7 @@ respostas do endpoint são comparadas por inteiro com `toEqual`.
 | `test/fixtures/intervals-same-producer-min-max.csv`    | O mesmo produtor aparece em `min` e em `max`.                                                            |
 | `test/fixtures/intervals-four-wins.csv`                | Produtor com quatro vitórias fora de ordem: intervalos só entre vitórias consecutivas.                   |
 | `test/fixtures/intervals-same-year.csv`                | Duas vitórias do mesmo produtor no mesmo ano geram intervalo 0.                                          |
+| `test/fixtures/intervals-duplicate-winner.csv`         | A vitória que forma o intervalo só existe numa linha duplicada posterior, e não é contada em dobro.       |
 | `test/fixtures/intervals-single-wins.csv`              | Nenhum produtor com duas vitórias: `{ "min": [], "max": [] }`.                                           |
 | `test/fixtures/intervals-no-winners.csv`               | Nenhum filme vencedor: `{ "min": [], "max": [] }`.                                                       |
 | `test/fixtures/intervals-multiple-producers.csv`       | Filmes vencedores com vários produtores: cada um recebe a vitória.                                       |

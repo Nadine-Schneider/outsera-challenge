@@ -47,7 +47,9 @@ npm run test:e2e     # testes de integração
   dentro do mesmo filme.
 - Linhas duplicadas são ignoradas com log de warning. Duas linhas são duplicadas quando têm o mesmo `year`,
   `title`, `studios` e `producers`, sem considerar a ordem dos nomes. O `winner` não faz parte da
-  comparação: vale a primeira ocorrência, inclusive o seu `winner`.
+  comparação: é gravada só a primeira ocorrência, com os seus `studios` e `producers`, e o `winner` dela
+  é o OU lógico de todas as ocorrências. Uma duplicata com `yes` promove o filme a vencedor (o warning
+  informa isso); uma duplicata sem `yes` nunca desmarca a vitória. A vitória nunca é contada em dobro.
 - O intervalo é calculado entre vitórias **consecutivas** de um mesmo produtor, com os anos ordenados.
   Vitórias em 2000, 2005 e 2020 geram os intervalos 5 e 15.
 - Produtores com uma única vitória não entram no cálculo.

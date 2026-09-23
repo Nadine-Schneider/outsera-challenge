@@ -120,7 +120,7 @@ export class CsvImportService implements OnApplicationBootstrap {
 
   private toMovieRows(rows: CsvRow[]): MovieRow[] {
     const movies: MovieRow[] = [];
-    const firstLineByKey = new Map<string, number>();
+    const firstByKey = new Map<string, { movie: MovieRow; line: number }>();
 
     for (const { record, info } of rows) {
       const year = (record.year ?? '').trim();
@@ -146,14 +146,22 @@ export class CsvImportService implements OnApplicationBootstrap {
       };
 
       const key = duplicateKey(movie);
-      const firstLine = firstLineByKey.get(key);
-      if (firstLine !== undefined) {
-        this.logger.warn(
-          `Skipping line ${info.lines}: duplicate of line ${firstLine}.`,
-        );
+      const first = firstByKey.get(key);
+      if (first !== undefined) {
+        if (movie.winner && !first.movie.winner) {
+          first.movie.winner = true;
+          this.logger.warn(
+            `Skipping line ${info.lines}: duplicate of line ${first.line}; ` +
+              `the movie is marked as a winner because this line is.`,
+          );
+        } else {
+          this.logger.warn(
+            `Skipping line ${info.lines}: duplicate of line ${first.line}.`,
+          );
+        }
         continue;
       }
-      firstLineByKey.set(key, info.lines);
+      firstByKey.set(key, { movie, line: info.lines });
 
       movies.push(movie);
     }
@@ -281,8 +289,9 @@ export class CsvImportService implements OnApplicationBootstrap {
 
 /**
  * Identifies a movie by year, title, studios and producers. The name lists are
- * sorted, so "A and B" and "B, A" describe the same movie; the winner flag is
- * not part of the key, so only the first occurrence of a movie is kept.
+ * sorted, so "A and B" and "B, A" describe the same movie. The winner flag is
+ * not part of the key: the first occurrence is kept, and it becomes a winner
+ * when any of its duplicates is one.
  */
 function duplicateKey({ year, title, studios, producers }: MovieRow): string {
   return JSON.stringify([

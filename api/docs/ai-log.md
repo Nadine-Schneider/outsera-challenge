@@ -518,3 +518,90 @@ Verifique e relate, sem corrigir:
   passaram. Nenhum comportamento foi alterado.
 
 **Ajustes manuais:**
+
+---
+
+## 2026-09-23 — `winner` "grudento" na deduplicação de linhas
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: tornar o `winner` "grudento" na deduplicação de linhas
+
+Hoje, em `src/csv-import/csv-import.service.ts`, linhas duplicadas (mesmo `year`, `title`,
+`studios` e `producers`, sem considerar a ordem dos nomes) são descartadas e vale a primeira
+ocorrência, inclusive o seu `winner`. Com isso, um CSV em que a mesma combinação aparece primeiro
+sem `winner` e depois com `yes` perde a vitória em silêncio, e o resultado do endpoint muda.
+
+A deduplicação deve continuar existindo: ela evita que uma linha repetida de um filme vencedor
+conte duas vitórias no mesmo ano e gere um intervalo 0 falso.
+
+## Mudança
+- A chave de duplicidade continua sendo `year`, `title`, `studios` e `producers`, com as listas de
+  nomes comparadas como conjuntos.
+- Continua sendo gravada apenas a primeira ocorrência, com os seus `studios` e `producers`.
+- O `winner` passa a ser o OU lógico de todas as ocorrências: se qualquer linha duplicada for
+  vencedora, o filme gravado é vencedor. Nunca o contrário: uma duplicata sem `winner` não
+  desmarca uma vitória já registrada.
+- Ajuste o warning para deixar claro o que aconteceu, distinguindo o caso em que a duplicata
+  apenas foi descartada do caso em que ela promoveu o filme a vencedor.
+- O resumo da importação continua contando os filmes efetivamente gravados, e `winners` deve
+  refletir o flag final.
+
+## Testes
+- Atualize `test/fixtures/duplicate-rows.csv` e o cenário correspondente em
+  `test/csv-import.e2e-spec.ts` para cobrir, além dos casos já existentes:
+  - duplicata com `winner = yes` **depois** de uma linha sem `winner`: o filme fica como vencedor,
+    e existe apenas um registro dele no banco;
+  - duplicata sem `winner` **depois** de uma linha com `yes`: o filme continua vencedor;
+  - duas duplicatas com `yes`: um único filme vencedor, sem vitória contada em dobro.
+- Acrescente um cenário em `test/award-intervals.e2e-spec.ts`, com fixture própria, em que a
+  vitória que forma o intervalo só existe na segunda ocorrência de uma linha duplicada. Sem a
+  correção, esse teste falha.
+- A asserção existente que verifica que vale o `winner` da primeira linha deve ser substituída
+  pela nova regra. Nenhum outro teste pode ser alterado.
+
+## Documentação
+- `CLAUDE.md`, em "Regras de negócio": atualize a regra de linhas duplicadas.
+- `README.md`, na descrição do formato do CSV: o texto atual diz que vale a primeira ocorrência
+  "inclusive o seu `winner`"; corrija para a nova regra, explicando o motivo.
+
+# Critérios de aceite
+- `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros.
+- Com `data/Movielist.csv` o resultado do endpoint permanece inalterado:
+  min = Joel Silver (1, 1990 → 1991), max = Matthew Vaughn (13, 2002 → 2015).
+- As contagens da importação com `data/Movielist.csv` continuam em 206 filmes, 42 vencedores,
+  359 produtores e 59 estúdios.
+- Nenhum `*.spec.ts` foi criado em `src/`.
+````
+
+**Resultado:**
+
+- `src/csv-import/csv-import.service.ts`: o mapa de duplicidade passou a guardar a primeira
+  ocorrência (`movie` e `line`), não só a linha. Quando uma duplicata tem `yes` e a primeira
+  ocorrência não, o `winner` dela vira `true` e o warning diz
+  `Skipping line N: duplicate of line M; the movie is marked as a winner because this line is.`;
+  nos demais casos o warning continua `Skipping line N: duplicate of line M.`. Como a promoção
+  acontece antes do `persist`, o resumo (`winners`) já reflete o flag final. Comentário de
+  `duplicateKey` atualizado.
+- `test/fixtures/duplicate-rows.csv`: acrescentadas as linhas de `Movie C` (2002), primeiro sem
+  `winner` e depois com `YES`. As linhas existentes já cobriam duas duplicatas com `yes` e uma
+  duplicata sem `winner` depois de `yes`.
+- `test/csv-import.e2e-spec.ts`: o teste do cenário de duplicatas foi renomeado para a nova
+  regra e passou a esperar `Movie C` como um único filme vencedor.
+- `test/award-intervals.e2e-spec.ts` e nova fixture `test/fixtures/intervals-duplicate-winner.csv`:
+  Producer A vence em 2000 e em 2003, mas a vitória de 2003 só aparece na segunda ocorrência da
+  linha; uma terceira ocorrência com `yes` garante que não surge intervalo 0. Esperado: min e max
+  com intervalo 3 (2000 → 2003).
+- Sem a correção no service, os dois testes novos falharam (2 de 22), conforme pedido.
+- `CLAUDE.md` e `README.md` atualizados com a nova regra; no README, também as linhas das
+  tabelas de fixtures.
+- Verificações: `npm run build`, `npm run lint` e `npm run test:e2e` (22 testes, 3 suítes)
+  passaram, inclusive o cenário do CSV padrão (Joel Silver / Matthew Vaughn; 206 filmes,
+  42 vencedores, 359 produtores e 59 estúdios).
+
+**Ajustes manuais:**

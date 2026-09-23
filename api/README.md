@@ -75,7 +75,40 @@ MOVIELIST_CSV_PATH=data/Movielist.csv PORT=3000 npm run start:dev
 
 ## Endpoints
 
-<!-- Preenchido conforme os endpoints forem implementados. -->
+### `GET /producers/award-intervals`
+
+Retorna os produtores com o menor (`min`) e o maior (`max`) intervalo entre duas vitórias
+consecutivas. Cada lista traz todos os registros empatados, ordenados por `previousWin` e
+depois por `producer`; um mesmo produtor pode aparecer nas duas listas. Produtores com uma
+única vitória não entram no cálculo, e duas vitórias no mesmo ano geram intervalo 0. Sem
+nenhum intervalo possível, a resposta é `{ "min": [], "max": [] }`.
+
+```bash
+curl http://localhost:3000/producers/award-intervals
+```
+
+Resposta `200 OK` com `data/Movielist.csv`:
+
+```json
+{
+  "min": [
+    {
+      "producer": "Joel Silver",
+      "interval": 1,
+      "previousWin": 1990,
+      "followingWin": 1991
+    }
+  ],
+  "max": [
+    {
+      "producer": "Matthew Vaughn",
+      "interval": 13,
+      "previousWin": 2002,
+      "followingWin": 2015
+    }
+  ]
+}
+```
 
 ## Decisões técnicas
 

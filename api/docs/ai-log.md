@@ -231,11 +231,13 @@ de prêmios) pertence ao módulo `producers`. Mova a entidade para o módulo don
 6. Atualize a árvore de pastas na seção "Arquitetura" do CLAUDE.md.
 
 # Restrições
+
 - Refactor sem mudança de comportamento: nomes de tabelas, de colunas e o schema resultante
   permanecem idênticos.
 - Não altere nenhum arquivo de teste nem nenhuma asserção existente.
 
 # Critérios de aceite
+
 - `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros, com os testes inalterados.
 - Nenhuma ocorrência de `forwardRef` em `src/`.
 - `git diff --stat` nos arquivos de teste está vazio.
@@ -270,3 +272,136 @@ de prêmios) pertence ao módulo `producers`. Mova a entidade para o módulo don
   idênticos.
 
 **Ajustes manuais:**
+
+---
+
+## 2026-09-22 — Endpoint de intervalos de prêmios
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+```markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: endpoint de intervalos de prêmios
+
+## 1. Cálculo (src/producers/award-intervals.calculator.ts)
+
+Função pura, sem dependência do Nest ou do TypeORM, que recebe uma lista de vitórias
+(`{ producer: string; year: number }[]`) e devolve `{ min: ProducerInterval[]; max: ProducerInterval[] }`,
+seguindo as regras de negócio do CLAUDE.md:
+
+- agrupa por produtor, ordena os anos e gera um intervalo para cada par consecutivo;
+- produtor com uma única vitória não entra no resultado;
+- `min` e `max` contêm todos os registros empatados, e um produtor pode aparecer nas duas listas
+  ou mais de uma vez na mesma;
+- duas vitórias no mesmo ano geram intervalo 0;
+- sem nenhum par possível, retorna `{ min: [], max: [] }`;
+- ordenação determinística por `previousWin` e depois por `producer`;
+- use `reduce` para mínimo e máximo, nunca `Math.min(...array)`.
+
+## 2. Acesso a dados (src/producers/producers.repository.ts)
+
+Crie um `ProducersRepository` com `@Injectable()`, que injeta o repositório de `Producer` via
+`@InjectRepository` (já registrado no `forFeature` do `ProducersModule`) e expõe um método
+`findAwardWins(): Promise<ProducerWin[]>`.
+
+- Uma única consulta com o query builder, com join na relação de filmes, filtrando apenas
+  vencedores e ordenando por produtor e ano. Sem N+1.
+- Use `getRawMany` selecionando só nome e ano; não carregue entidades completas com relações.
+- Converta o resultado bruto para o tipo de domínio `ProducerWin { producer: string; year: number }`,
+  garantindo que `year` seja number. Nenhum campo bruto do banco vaza para fora desta classe.
+- Não crie interface nem token de injeção customizado; injete a classe concreta.
+
+O `ProducersService` apenas orquestra: chama `findAwardWins()` e repassa o resultado ao calculator.
+
+Não importe o `MoviesModule` no `ProducersModule`. Se a consulta exigir referenciar `Movie`,
+faça o join a partir da relação da própria entidade `Producer` ou registre `Movie` também no
+`forFeature` do `ProducersModule`. Se nenhuma dessas alternativas funcionar, pare e me explique
+antes de prosseguir.
+
+## 3. Endpoint
+
+`GET /producers/award-intervals`, respondendo 200 com o formato definido no CLAUDE.md.
+Crie DTOs de resposta (`ProducerIntervalDto` e `AwardIntervalsResponseDto`) documentados com os
+decorators do Swagger, e garanta que o JSON não exponha campos internos como `id`.
+A rota deve aparecer em `/api-docs` com o exemplo de resposta.
+
+## 4. Testes de integração (test/award-intervals.e2e-spec.ts)
+
+Sobem o AppModule completo e comparam o corpo inteiro da resposta com `toEqual`. Um cenário por
+fixture em `test/fixtures`:
+
+1. `data/Movielist.csv`: min = Joel Silver (1, 1990 → 1991), max = Matthew Vaughn (13, 2002 → 2015).
+2. Empate no min e empate no max, com mais de um registro em cada lista.
+3. Mesmo produtor presente em `min` e em `max`.
+4. Produtor com quatro vitórias, garantindo que os intervalos são entre pares consecutivos
+   e não entre a primeira e a última.
+5. Produtor com duas vitórias no mesmo ano, resultando em intervalo 0.
+6. Nenhum produtor com duas vitórias: `{ "min": [], "max": [] }` com status 200.
+7. CSV sem nenhum vencedor: mesmo resultado vazio, sem erro.
+8. Filme vencedor com vários produtores, verificando que cada um recebe a vitória.
+
+Mantenha os testes das etapas anteriores passando e sem alterações.
+
+# Critérios de aceite
+
+- `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros.
+- `GET /producers/award-intervals` retorna 200 com o resultado esperado para `data/Movielist.csv`.
+- `ProducersModule` não importa `MoviesModule`, e não há `forwardRef` em `src/`.
+- Nenhum `*.spec.ts` foi criado em `src/`.
+- `git diff` nos testes das etapas anteriores está vazio.
+```
+
+**Resultado:**
+
+- `src/producers/award-intervals.calculator.ts`: tipos de domínio `ProducerWin`,
+  `ProducerInterval` e `AwardIntervals` e a função pura `calculateAwardIntervals()`. Agrupa os
+  anos por produtor num `Map`, ordena os anos de cada um, gera um intervalo por par consecutivo,
+  acha o menor e o maior com um único `reduce` e filtra todos os empatados. A ordenação é por
+  `previousWin`, depois `producer` (comparação por código de caractere, sem `localeCompare`,
+  para não depender do locale) e, como desempate final, `followingWin`. O(n log n).
+- `src/producers/producers.repository.ts`: `ProducersRepository` injeta `Repository<Producer>`
+  e faz uma única consulta (`innerJoin('producer.movies', 'movie')`, `winner = true`, ordenada
+  por nome e ano) com `getRawMany`, selecionando só nome e ano, e converte `year` com
+  `Number()`. O join parte da relação da própria entidade `Producer`, então não foi preciso
+  registrar `Movie` no `forFeature` nem importar o `MoviesModule`. Não há `DISTINCT`: duas
+  vitórias no mesmo ano (filmes diferentes) chegam como duas linhas e geram o intervalo 0.
+- `src/producers/producers.service.ts`: apenas chama `findAwardWins()` e repassa ao calculator.
+- `src/producers/producers.controller.ts`: `GET /producers/award-intervals` (200), com
+  `@ApiTags`, `@ApiOperation` e `@ApiOkResponse`. O controller copia explicitamente os quatro
+  campos públicos de cada intervalo para o DTO, então nenhum campo interno chega ao JSON.
+- `src/producers/dto/award-intervals-response.dto.ts`: `ProducerIntervalDto` e
+  `AwardIntervalsResponseDto` com `@ApiProperty` (descrição e exemplo por campo; `min` e `max`
+  com os exemplos do CLAUDE.md). O plugin do Swagger no `nest-cli.json` não está ativo, por
+  isso os decorators são explícitos.
+- `ProducersModule` registra controller, repository e service; continua sem importar outros
+  módulos de domínio.
+- `test/award-intervals.e2e-spec.ts`: os 8 cenários pedidos num `describe.each`, cada um
+  subindo o `AppModule` com sua fixture e comparando o corpo inteiro com `toEqual`, e mais um
+  teste que confere a rota, o schema da resposta e os exemplos no documento OpenAPI
+  (`/api-docs-json`). Fixtures `test/fixtures/intervals-*.csv`: nos empates, os produtores
+  aparecem fora de ordem no arquivo para exercitar a ordenação por nome; no cenário de quatro
+  vitórias, os anos estão fora de ordem e há um segundo produtor com intervalo 8, menor que o
+  14 entre a primeira e a última vitória, de modo que um cálculo entre extremos falharia.
+- README: seção "Endpoints" com a descrição da rota e a resposta para `data/Movielist.csv`.
+- Verificações: `npm run build`, `npm run lint` e `npm run test:e2e` (21 testes, 3 suítes)
+  passaram; `git diff -- test` sem alterações nos testes anteriores; nenhum `forwardRef` nem
+  `*.spec.ts` em `src/`.
+
+**Ajustes manuais:**
+
+- Os tipos de domínio `ProducerWin`, `ProducerInterval` e `AwardIntervals` saíram de
+  `award-intervals.calculator.ts` e foram para um arquivo próprio,
+  `src/producers/award-intervals.types.ts`. Antes, o `ProducersRepository` importava
+  `ProducerWin` do arquivo do calculator, e assim a camada de dados dependia do arquivo de
+  cálculo só por causa de um tipo. Agora repository, calculator, service e DTOs importam os
+  tipos desse arquivo neutro. O `ProducerWinRow` continua privado dentro do repository,
+  porque representa a linha bruta do banco e não deve sair da classe.
+- A função `toDto` foi removida do `ProducersController`, que agora só retorna
+  `this.producersService.getAwardIntervals()`, com o retorno tipado como
+  `AwardIntervalsResponseDto`. O mapeamento era redundante: o calculator já cria objetos
+  novos só com `producer`, `interval`, `previousWin` e `followingWin`, com o mesmo formato
+  dos DTOs, e os testes e2e comparam o corpo inteiro com `toEqual`, então um campo extra
+  (como `id`) faria o teste falhar.

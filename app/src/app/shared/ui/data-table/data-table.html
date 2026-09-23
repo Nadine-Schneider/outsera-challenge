@@ -1,0 +1,27 @@
+<div class="table-responsive">
+  <table class="table table-sm table-striped table-bordered align-middle small mb-0">
+    <thead class="table-light">
+      <tr>
+        @for (column of columns(); track column.key) {
+          <th scope="col" [class]="alignClass[column.align ?? 'start']">{{ column.header }}</th>
+        }
+      </tr>
+      <ng-content select="[appTableFilters]" />
+    </thead>
+    <tbody>
+      @for (row of rows(); track trackBy()(row)) {
+        <tr>
+          @for (column of columns(); track column.key) {
+            <td [class]="alignClass[column.align ?? 'start']">{{ row[column.key] }}</td>
+          }
+        </tr>
+      } @empty {
+        <tr>
+          <td class="text-center text-body-secondary" [attr.colspan]="columns().length">
+            {{ emptyMessage() }}
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

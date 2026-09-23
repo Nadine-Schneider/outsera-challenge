@@ -298,3 +298,123 @@ componentes de UI nem o uso de rxResource nas features. Isso vem nas próximas e
   mostra um objeto único (por isso os dois são aceitos), e `null` cobre corpo vazio, que o
   `HttpClient` converte em `null`. O tipo foi mantido, e o `TODO` que pedia a revisão do
   comentário foi removido.
+
+---
+
+## 2026-09-23 — Componentes compartilhados de UI
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: componentes compartilhados de UI
+Nesta etapa, apenas os componentes reutilizáveis em `shared/ui/`. Não implemente os painéis
+do dashboard, a lista de filmes nem nenhuma chamada à API. Todos os componentes desta etapa
+são puramente apresentacionais: recebem `input()`, emitem `output()` e não injetam serviços.
+
+1. `PanelComponent` — o cartão que envolve cada bloco do dashboard.
+   - `title = input.required<string>()`
+   - projeta o conteúdo no corpo do cartão
+   - visual conforme o anexo 1: borda, cabeçalho com o título em negrito, corpo com padding
+
+2. `DataTableComponent<T>` — a tabela genérica usada em todas as telas.
+   - `columns = input.required<TableColumn<T>[]>()`, onde
+     `TableColumn<T> = { key: keyof T & string; header: string; align?: 'start' | 'center' | 'end' }`
+   - `rows = input.required<readonly T[]>()`
+   - `emptyMessage = input('No records found')`, exibido quando `rows` está vazio
+   - um slot de projeção opcional renderizado como **segunda linha
+     do cabeçalho**, para os filtros embutidos da lista de filmes (anexo 2)
+   - genérico de verdade: use a estratégia de tipagem contextual do Angular
+     (`static ngTemplateContextGuard` ou tipagem genérica no seletor) para que `strictTemplates`
+     valide os tipos, sem recorrer a `any`
+   - `@for` com `track` por uma chave estável, não por índice
+   - semântica e acessibilidade: `<thead>`/`<tbody>`, `scope="col"` nos cabeçalhos
+   - classes do Bootstrap para o visual de tabela listrada e com borda; envolva a tabela num
+     container com `overflow-x: auto`
+
+3. `PaginationComponent` — conforme o anexo 2.
+   - `currentPage = input.required<number>()` (base 1), `totalPages = input.required<number>()`
+   - `maxVisiblePages = input(5)`
+   - `pageChange = output<number>()`
+   - botões: primeira, anterior, janela de páginas numeradas, próxima, última
+   - desabilita primeira/anterior na primeira página e próxima/última na última
+   - não renderiza nada quando `totalPages <= 1`
+   - a página ativa tem destaque visual e `aria-current="page"`
+   - o cálculo da janela de páginas visíveis fica numa **função pura** em `shared/utils/`,
+     não dentro do componente
+   - `<nav>` com `aria-label` e botões com rótulo acessível
+
+4. `LoadingIndicatorComponent` — spinner do Bootstrap, com `role="status"` e texto para
+   leitor de tela.
+
+5. `ErrorStateComponent`
+   - `message = input('Something went wrong. Please try again.')`
+   - `retry = output<void>()`, com um botão "Try again"
+   - `role="alert"`
+
+6. `EmptyStateComponent`
+   - `message = input.required<string>()`
+   - visual discreto, apenas texto centralizado
+
+
+# Testes
+Um `*.spec.ts` por componente, testando o DOM renderizado, não detalhes internos:
+- `DataTableComponent`: renderiza os cabeçalhos na ordem das colunas; renderiza uma linha
+  por item; exibe `emptyMessage` com lista vazia; o slot de filtros aparece no `<thead>`
+  quando projetado e não aparece quando ausente.
+- `PaginationComponent`: não renderiza com `totalPages` 0 ou 1; desabilita os botões nos
+  extremos; emite `pageChange` com o número correto ao clicar; a página ativa tem
+  `aria-current`.
+- Função pura da janela de páginas: início, meio e fim do intervalo, e total de páginas
+  menor que a janela.
+- `ErrorStateComponent`: emite `retry` ao clicar no botão.
+- `PanelComponent`, `LoadingIndicatorComponent` e `EmptyStateComponent`: renderizam título,
+  conteúdo projetado e mensagem.
+
+# Critérios de aceite
+- `npm run lint`, `npm test` e `npm run build` passam sem erros.
+- Nenhum componente desta etapa injeta serviço, faz requisição ou conhece a API.
+- Nenhum `any` no código de produção, inclusive na tipagem genérica da tabela.
+- O layout dos componentes não quebra em 768x1280 nem em 360x800.
+````
+
+**Resultado:**
+
+- Seis componentes standalone em `shared/ui/`, um por pasta (`panel`, `data-table`,
+  `pagination`, `loading-indicator`, `error-state`, `empty-state`), sem serviços injetados e
+  sem conhecimento da API. OnPush não é declarado porque já é o padrão do Angular 22.
+- `DataTableComponent<T>`: genérico na classe; o Angular infere `T` a partir dos bindings
+  `[rows]` e `[columns]`, e o `strictTemplates` rejeita linhas incompatíveis com as colunas
+  (verificado com uma alteração temporária no spec, que gerou TS2322). Colunas rastreadas por
+  `column.key`; linhas por um input opcional `trackBy` (função `(row: T) => unknown`), que por
+  padrão usa a identidade do objeto. Os filtros são projetados por `<ng-content
+  select="[appTableFilters]">` dentro do `<thead>`: quem usa a tabela fornece o `<tr>` inteiro,
+  com uma célula por coluna. Wrapper `.table-responsive` (Bootstrap) para o `overflow-x: auto`.
+- `visiblePageRange(currentPage, totalPages, maxVisible)` em `shared/utils/pagination.ts`:
+  janela centrada na página atual, deslocada para caber em `1..totalPages`, com valores fora do
+  intervalo ajustados aos limites.
+- `PaginationComponent`: `<nav aria-label="Pagination">`, botões com `aria-label` (“First page”,
+  “Page 3”…), ícones com `aria-hidden`, `flex-wrap` para telas estreitas. Não emite ao clicar
+  na página atual.
+- Specs ao lado de cada componente, mais 8 testes da função pura (78 testes no total).
+  `npm run lint`, `npm test`, `npm run build` e `prettier --check` passaram.
+- Responsividade não verificada no navegador, porque nenhuma página usa os componentes ainda.
+  A análise se baseou nas classes: tabela com rolagem horizontal, paginação e alerta de erro
+  com quebra de linha.
+
+**Ajustes manuais:**
+
+- Removido o sufixo `.component` dos nomes de arquivo em `shared/ui/` (`panel.ts`,
+  `data-table.ts`/`.html`, `pagination.ts`/`.html`, `loading-indicator.ts`, `error-state.ts`,
+  `empty-state.ts` e os respectivos `.spec.ts`), seguindo o padrão do Angular 22 e a convenção
+  do shell. As classes mantiveram os nomes (`PanelComponent` etc.); imports e `templateUrl`
+  foram atualizados.
+- No spec da `DataTableComponent`, o teste da linha de filtros projetada passou a inspecionar o
+  DOM renderizado: existe um único `tr[appTableFilters]`, seu pai é o `<thead>` da tabela e ele é
+  o segundo filho do `<thead>` (portanto dentro da tabela, não fora dela).
+- O teste de ausência do slot passou a verificar explicitamente que o `<thead>` tem um único
+  filho, apenas a linha de cabeçalhos com um `th[scope="col"]` por coluna, e que nenhum
+  `[appTableFilters]` é renderizado.

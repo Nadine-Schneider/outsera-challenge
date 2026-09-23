@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { configureApp, SWAGGER_PATH } from './app.setup';
@@ -12,8 +13,9 @@ async function bootstrap(): Promise<void> {
   const { port } = app.get(AppConfigService);
   await app.listen(port);
 
-  console.log(`Application is running on http://localhost:${port}`);
-  console.log(
+  const logger = new Logger('Bootstrap');
+  logger.log(`Application is running on http://localhost:${port}`);
+  logger.log(
     `Swagger UI is available at http://localhost:${port}/${SWAGGER_PATH}`,
   );
 }

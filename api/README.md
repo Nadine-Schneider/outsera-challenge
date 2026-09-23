@@ -341,6 +341,15 @@ interface não traria benefício e só acrescentaria indireção.
   produtores, então dois produtores homônimos são tratados como a mesma pessoa, e suas
   vitórias se somam no cálculo. Pela mesma razão, variações de grafia do mesmo nome (por
   exemplo, diferenças de maiúsculas ou acentos) resultam em produtores distintos.
+- **Vírgula sempre separa nomes.** Nas colunas `producers` e `studios`, a vírgula é tratada
+  como separador incondicional. Nomes que contêm vírgula como parte do próprio nome são
+  quebrados: `"Sammy Davis, Jr."` vira `Sammy Davis` e `Jr.`, e `"Warner Bros., Inc."` vira
+  `Warner Bros.` e `Inc.`. Não há como distinguir com segurança a vírgula que separa nomes da
+  vírgula que faz parte de um nome: a ambiguidade só seria resolvida com um identificador por
+  pessoa ou estúdio ou com uma lista de exceções, e nenhum dos dois existe no CSV. O impacto é
+  que um nome quebrado gera dois registros distintos, e as vitórias correspondentes ficam
+  associadas a esses registros separados, não ao nome original, o que afeta o cálculo dos
+  intervalos para esse produtor.
 
 ## Testes
 

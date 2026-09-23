@@ -638,3 +638,65 @@ conte duas vitórias no mesmo ano e gere um intervalo 0 falso.
   em ambiente de integração contínua nem para conferir o estado do repositório sem modificá-lo.
 - Verificações: `npm run lint:check`, `npm run build` e `npm run test:e2e` passaram sem erros e
   sem alterações em arquivos.
+
+---
+
+## 2026-09-23 — Logger no bootstrap e limitação do parser na documentação
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+```markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: logger no bootstrap e limitação do parser na documentação
+
+Duas correções pequenas e independentes. Não altere nenhuma outra parte do comportamento.
+
+## 1. Substituir `console.log` pelo Logger do Nest
+Em `src/main.ts`, as duas mensagens de inicialização (URL da aplicação e do Swagger UI) usam
+`console.log`, enquanto o restante do projeto usa o `Logger` do Nest (`CsvImportService`).
+Troque por uma instância de `Logger` com o contexto do bootstrap, mantendo o mesmo conteúdo das
+mensagens e o nível `log`. Nenhuma outra mudança em `main.ts`.
+
+## 2. Registrar a limitação do parser de nomes
+A vírgula é tratada como separador incondicional em `parseNameList`
+(`src/csv-import/name-list.parser.ts`). Isso é correto para o arquivo fornecido, mas quebra nomes
+que contêm vírgula como parte do próprio nome, por exemplo "Sammy Davis, Jr." ou um estúdio
+como "Warner Bros., Inc.", que seriam divididos em dois registros. Não existe forma segura de
+distinguir os dois usos com os dados disponíveis, portanto o comportamento fica como está e
+passa a ser documentado.
+
+- `README.md`, seção "Limitações conhecidas": acrescente um item explicando a limitação, com um
+  exemplo, o motivo de não ser resolvida (ambiguidade insolúvel sem um identificador ou uma
+  lista de exceções) e o impacto (um nome quebrado gera dois registros distintos, e as vitórias
+  correspondentes ficam separadas).
+- `CLAUDE.md`, em "Regras de negócio": acrescente uma linha registrando que a vírgula separa
+  sempre, para que essa decisão não seja revertida por engano em mudanças futuras.
+- Não altere a implementação do parser nem nenhum teste.
+
+# Critérios de aceite
+- `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros.
+- Nenhuma ocorrência de `console.log` em `src/`.
+- `npm run start` continua exibindo as mesmas informações na inicialização, agora no formato do
+  Logger do Nest.
+- Nenhuma alteração em `src/csv-import/` nem em `test/`.
+```
+
+**Resultado:**
+
+- `src/main.ts`: os dois `console.log` foram trocados por `logger.log`, numa instância
+  `new Logger('Bootstrap')`. O texto das mensagens não mudou.
+- `README.md`: novo item em "Limitações conhecidas" sobre a vírgula como separador
+  incondicional, com os exemplos `"Sammy Davis, Jr."` e `"Warner Bros., Inc."`, o motivo (sem
+  identificador nem lista de exceções no CSV) e o impacto (dois registros distintos, com as
+  vitórias separadas).
+- `CLAUDE.md`: nova linha em "Regras de negócio" registrando que a vírgula separa sempre e que
+  a limitação não deve ser tratada no parser.
+- Nenhuma alteração em `src/csv-import/` nem em `test/`.
+- Verificações: `npm run build`, `npm run lint` e `npm run test:e2e` (22 testes, 3 suítes)
+  passaram; nenhum `console.log` em `src/`. Na inicialização, as mensagens aparecem como
+  `[Bootstrap] Application is running on ...` e `[Bootstrap] Swagger UI is available at ...`.
+
+**Ajustes manuais:**

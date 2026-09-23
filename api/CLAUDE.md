@@ -45,6 +45,8 @@ npm run test:e2e     # testes de integração
 - O campo `producers` (e também `studios`) contém vários nomes. Separe por `, and`, `,` e `and`
   (ex.: `"A, B, and C"`, `"A, B and C"`, `"A and B"`). Faça trim, descarte vazios e remova duplicados
   dentro do mesmo filme.
+- A vírgula separa nomes sempre, sem exceções. Nomes com vírgula (ex.: `"Sammy Davis, Jr."`) são quebrados
+  em dois; é uma limitação conhecida e documentada no README. Não tente tratá-la no parser.
 - Linhas duplicadas são ignoradas com log de warning. Duas linhas são duplicadas quando têm o mesmo `year`,
   `title`, `studios` e `producers`, sem considerar a ordem dos nomes. O `winner` não faz parte da
   comparação: é gravada só a primeira ocorrência, com os seus `studios` e `producers`, e o `winner` dela

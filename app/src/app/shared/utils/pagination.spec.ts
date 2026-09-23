@@ -1,4 +1,4 @@
-import { toApiPage, toUiPage, visiblePageRange } from './pagination';
+import { toApiPage, visiblePageRange } from './pagination';
 
 describe('toApiPage', () => {
   it('converts the one-based UI page to the zero-based API page', () => {
@@ -9,17 +9,6 @@ describe('toApiPage', () => {
   it('maps pages below 1 to the first API page', () => {
     expect(toApiPage(0)).toBe(0);
     expect(toApiPage(-3)).toBe(0);
-  });
-});
-
-describe('toUiPage', () => {
-  it('converts the zero-based API page to the one-based UI page', () => {
-    expect(toUiPage(0)).toBe(1);
-    expect(toUiPage(4)).toBe(5);
-  });
-
-  it('is the inverse of toApiPage', () => {
-    expect(toUiPage(toApiPage(7))).toBe(7);
   });
 });
 

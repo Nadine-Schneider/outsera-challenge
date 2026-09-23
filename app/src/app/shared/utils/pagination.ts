@@ -3,11 +3,6 @@ export function toApiPage(uiPage: number): number {
   return Math.max(uiPage, 1) - 1;
 }
 
-/** Converts the zero-based API page to the one-based UI page. */
-export function toUiPage(apiPage: number): number {
-  return apiPage + 1;
-}
-
 export function visiblePageRange(
   currentPage: number,
   totalPages: number,

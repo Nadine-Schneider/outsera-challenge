@@ -87,6 +87,7 @@ export class CsvImportService implements OnApplicationBootstrap {
       rows = parse<CsvRow>(content, {
         delimiter: ';',
         bom: true,
+        relax_quotes: true,
         trim: true,
         skip_empty_lines: true,
         skip_records_with_empty_values: true,

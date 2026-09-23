@@ -655,12 +655,14 @@ Leia o CLAUDE.md antes de começar.
 Duas correções pequenas e independentes. Não altere nenhuma outra parte do comportamento.
 
 ## 1. Substituir `console.log` pelo Logger do Nest
+
 Em `src/main.ts`, as duas mensagens de inicialização (URL da aplicação e do Swagger UI) usam
 `console.log`, enquanto o restante do projeto usa o `Logger` do Nest (`CsvImportService`).
 Troque por uma instância de `Logger` com o contexto do bootstrap, mantendo o mesmo conteúdo das
 mensagens e o nível `log`. Nenhuma outra mudança em `main.ts`.
 
 ## 2. Registrar a limitação do parser de nomes
+
 A vírgula é tratada como separador incondicional em `parseNameList`
 (`src/csv-import/name-list.parser.ts`). Isso é correto para o arquivo fornecido, mas quebra nomes
 que contêm vírgula como parte do próprio nome, por exemplo "Sammy Davis, Jr." ou um estúdio
@@ -677,6 +679,7 @@ passa a ser documentado.
 - Não altere a implementação do parser nem nenhum teste.
 
 # Critérios de aceite
+
 - `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros.
 - Nenhuma ocorrência de `console.log` em `src/`.
 - `npm run start` continua exibindo as mesmas informações na inicialização, agora no formato do
@@ -717,6 +720,7 @@ Leia o CLAUDE.md antes de começar.
 Três correções relacionadas, sem mudança de comportamento em caminho feliz.
 
 ## 1. Erros do parser do CSV
+
 Em `src/csv-import/csv-import.service.ts`, o `try/catch` de `readCsv` cobre apenas o `readFile`.
 A chamada a `parse()` fica de fora, então um arquivo existente mas malformado (aspas
 desbalanceadas, por exemplo) propaga o erro cru do `csv-parse`, sem citar o caminho do arquivo
@@ -733,6 +737,7 @@ nem `MOVIELIST_CSV_PATH`, ao contrário das demais falhas de importação.
   equivalente na classe criada), sem incluir o stack na mensagem exibida.
 
 ## 2. Falha de bootstrap
+
 `src/main.ts` faz `void bootstrap()`, então uma falha de inicialização aparece como unhandled
 rejection, com stack do Node em vez da mensagem preparada. Trate a rejeição: logue a mensagem
 do erro pelo `Logger` (com o stack apenas como detalhe secundário) e encerre com
@@ -740,7 +745,9 @@ do erro pelo `Logger` (com o stack apenas como detalhe secundário) e encerre co
 explícita.
 
 ## 3. Testes
+
 Em `test/csv-import.e2e-spec.ts`, mantendo os cenários existentes e suas asserções:
+
 - acrescente uma fixture com CSV malformado (aspas desbalanceadas) e verifique que a
   inicialização falha com um erro cuja mensagem cita o caminho do arquivo e
   `MOVIELIST_CSV_PATH`;
@@ -750,11 +757,13 @@ Em `test/csv-import.e2e-spec.ts`, mantendo os cenários existentes e suas asser�
   de `CsvImportError`, sem alterar as mensagens verificadas.
 
 # Restrições
+
 - Não altere o parser de nomes, o cálculo dos intervalos nem o endpoint.
 - Não crie `ExceptionFilter` global: com um único `GET` sem parâmetros, o filtro padrão do Nest
   já basta.
 
 # Critérios de aceite
+
 - `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros.
 - Com `data/Movielist.csv`, a aplicação sobe normalmente e o resumo da importação permanece
   inalterado (206 filmes, 42 vencedores, 359 produtores e 59 estúdios).
@@ -837,3 +846,52 @@ Em `test/csv-import.e2e-spec.ts`, mantendo os cenários existentes e suas asser�
   anteriores deste log continuam com os caminhos antigos, por serem registro histórico.
 - Verificações: `npm run lint`, `npm run build` e `npm run test:e2e` (24 testes, 3 suítes)
   passaram, sem mudança de comportamento.
+
+---
+
+## 2026-09-23 — Aspas no meio de um campo do CSV
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+```markdown
+Aplique apenas a correção do item 1 da sua revisão.
+
+- Adicione `relax_quotes: true` às opções do `parse()` em `src/csv-import/csv-import.service.ts`,
+  com um comentário curto explicando que aspas no meio de um campo não devem derrubar a
+  importação.
+- Crie `test/fixtures/quoted-title.csv` com um filme cujo título contenha aspas no meio
+  (ex.: `The "Big" one`) e um cenário em `test/csv-import.e2e-spec.ts` verificando que a
+  aplicação sobe e que o título é gravado com as aspas preservadas.
+- O cenário existente de `malformed.csv` (aspa não fechada) deve continuar falhando com
+  `CsvImportError` e `cause.code === 'CSV_QUOTE_NOT_CLOSED'`, sem alteração no teste.
+- Registre a mudança no `docs/ai-log.md`.
+
+Não altere mais nada: nem a chave de duplicidade, nem o parser de nomes, nem os índices,
+nem os demais itens da revisão.
+
+Critérios de aceite: `npm run build`, `npm run lint:check` e `npm run test:e2e` passam, e o
+resultado com `data/Movielist.csv` permanece inalterado.
+```
+
+**Resultado:**
+
+- Contexto: numa revisão do projeto, uma linha como `2000;The "Big" one;S;P;yes` fazia o
+  `csv-parse` lançar `INVALID_OPENING_QUOTE`, e a aplicação inteira deixava de subir por causa
+  de um único título.
+- `src/csv-import/csv-import.service.ts`: `relax_quotes: true` nas opções do `parse()`, com
+  comentário. Uma aspa dentro de um campo sem aspas passa a ser tratada como texto. Campos entre
+  aspas (ex.: `"A;B"`) continuam funcionando, e uma aspa de abertura sem fechamento continua
+  gerando `CSV_QUOTE_NOT_CLOSED`.
+- `test/fixtures/quoted-title.csv` (novo): um filme vencedor com o título `The "Big" one` e um
+  filme comum.
+- `test/csv-import.e2e-spec.ts`: novo cenário "with a quote inside a title", que sobe a
+  aplicação com a fixture e compara os filmes gravados com `toEqual`, incluindo o título com as
+  aspas preservadas. O cenário de `malformed.csv` não foi alterado e continua passando.
+- Verificações: `npm run build` e `npm run lint:check` passaram. `npm run test:e2e` passou com
+  25 testes em 3 suítes em quatro execuções seguidas. Na primeira execução, logo após o build, 2
+  testes falharam uma vez e a falha não se repetiu; o detalhe não foi capturado. O cenário de
+  `data/Movielist.csv` continua com o mesmo resultado (min Joel Silver, max Matthew Vaughn).
+
+**Ajustes manuais:**

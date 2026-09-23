@@ -262,6 +262,37 @@ describe('CSV import (e2e)', () => {
     });
   });
 
+  describe('with a quote inside a title', () => {
+    let testApp: TestApp;
+
+    beforeAll(async () => {
+      testApp = await createTestApp(fixturePath('quoted-title.csv'));
+    });
+
+    afterAll(async () => {
+      await testApp.app.close();
+    });
+
+    it('imports the title with its quotes', async () => {
+      expect(await findMovies(testApp.dataSource)).toEqual([
+        {
+          year: 2000,
+          title: 'The "Big" one',
+          winner: true,
+          producers: ['Producer A'],
+          studios: ['Studio A'],
+        },
+        {
+          year: 2001,
+          title: 'Movie B',
+          winner: false,
+          producers: ['Producer B'],
+          studios: ['Studio B'],
+        },
+      ]);
+    });
+  });
+
   describe('with more movies than a single insert batch', () => {
     // 1,201 movies need three batches of 500 rows.
     const movieCount = 1201;

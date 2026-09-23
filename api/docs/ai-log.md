@@ -812,3 +812,28 @@ Em `test/csv-import.e2e-spec.ts`, mantendo os cenários existentes e suas asser�
 - Verificações após os ajustes: `npm run build`, `npm run lint` e `npm run test:e2e`
   (24 testes, 3 suítes) passaram; com um caminho inexistente, a aplicação encerra com a mensagem
   tratada e código de saída 1.
+
+---
+
+## 2026-09-23 — Ajuste manual: diretório do cálculo dos intervalos
+
+**Ferramenta:** nenhuma (edição manual)
+
+**Prompt:** nenhum (edição manual)
+
+**Ajustes manuais:**
+
+- `award-intervals.calculator.ts` e `award-intervals.types.ts` foram movidos de
+  `src/producers/` para `src/producers/award-intervals/`, com `git mv` para preservar o
+  histórico. Os dois arquivos formam uma unidade: a função pura do cálculo e os tipos de
+  domínio que ela consome e produz. Soltos na raiz do módulo, ficavam misturados com controller,
+  service, repository e module, que são as peças do Nest. O nome `utils` ou `helpers` foi
+  descartado porque o conteúdo não é utilitário genérico: é a regra de negócio do endpoint, e os
+  tipos também são usados pelo repository e pelo DTO.
+- Imports atualizados em `producers.service.ts`, `producers.repository.ts` e
+  `dto/award-intervals-response.dto.ts`. O import relativo entre os dois arquivos movidos não
+  mudou.
+- `README.md`: caminho do cálculo atualizado na seção "Cálculo dos intervalos". As entradas
+  anteriores deste log continuam com os caminhos antigos, por serem registro histórico.
+- Verificações: `npm run lint`, `npm run build` e `npm run test:e2e` (24 testes, 3 suítes)
+  passaram, sem mudança de comportamento.

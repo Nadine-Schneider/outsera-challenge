@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProducerWin } from './award-intervals.types';
+import { ProducerWin } from './award-intervals/award-intervals.types';
 import { Producer } from './entities';
 
 interface ProducerWinRow {

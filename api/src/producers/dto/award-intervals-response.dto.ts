@@ -1,5 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { AwardIntervals, ProducerInterval } from '../award-intervals.types';
+import {
+  AwardIntervals,
+  ProducerInterval,
+} from '../award-intervals/award-intervals.types';
 
 export class ProducerIntervalDto implements ProducerInterval {
   @ApiProperty({ description: 'Nome do produtor.', example: 'Producer 1' })

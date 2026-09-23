@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { calculateAwardIntervals } from './award-intervals.calculator';
-import { AwardIntervals } from './award-intervals.types';
+import { calculateAwardIntervals } from './award-intervals/award-intervals.calculator';
+import { AwardIntervals } from './award-intervals/award-intervals.types';
 import { ProducersRepository } from './producers.repository';
 
 @Injectable()

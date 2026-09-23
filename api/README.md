@@ -275,7 +275,8 @@ individualmente.
 ### Cálculo dos intervalos
 
 - O cálculo fica numa função pura, `calculateAwardIntervals`
-  (`src/producers/award-intervals.calculator.ts`), sem dependência do Nest nem do TypeORM.
+  (`src/producers/award-intervals/award-intervals.calculator.ts`), sem dependência do Nest nem
+  do TypeORM.
 - As vitórias são agrupadas por produtor, os anos de cada um são ordenados e é gerado um
   intervalo para **cada par consecutivo**. Vitórias em 2000, 2005 e 2020 geram 5 e 15; o
   intervalo entre a primeira e a última (20) não é considerado.

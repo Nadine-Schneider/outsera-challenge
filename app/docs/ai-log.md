@@ -2,13 +2,26 @@
 
 Histórico das interações com assistentes de IA durante o desenvolvimento deste projeto.
 
-Cada entrada segue a estrutura abaixo:
+## Propósito
 
-- **Data** — quando a interação aconteceu.
+Este documento registra como a IA foi usada: o que foi pedido, o que o agente entregou e o que
+mudou na revisão humana. Serve para avaliar o processo, não só o resultado, e para mostrar onde
+as sugestões do agente foram corrigidas ou rejeitadas.
+
+## Como foi produzido
+
+O projeto foi desenvolvido em etapas com o Claude Code, seguindo as instruções persistentes do
+`CLAUDE.md`. Ao final de cada etapa, o próprio agente adicionou a entrada com o prompt e o
+resultado. A revisão humana veio depois, e os ajustes feitos nela foram escritos por mim, à mão.
+
+As entradas estão em ordem cronológica. Cada uma segue a estrutura abaixo:
+
+- **Título** — data e nome da etapa.
 - **Ferramenta** — assistente e modelo utilizados.
-- **Prompt** — o texto integral do pedido.
-- **Resultado** — o que a IA produziu.
-- **Ajustes manuais** — correções e mudanças feitas por mim depois, à mão.
+- **Prompt** — o texto integral do pedido, sem resumo.
+- **Resultado** — o que a IA produziu, conforme relatado pelo agente ao fim da etapa.
+- **Ajustes manuais** — correções e mudanças feitas por mim depois, à mão. Fica em branco quando
+  não houve ajuste.
 
 ---
 
@@ -933,6 +946,8 @@ estático. Cobertura só conta se prova comportamento.
 - 157 testes passando (eram 152); `npm run lint`, `prettier --check`, `npm run build` e
   `npm test -- --coverage` sem erros nem avisos.
 
+**Ajustes manuais:**
+
 ---
 
 ## 2026-09-23 — Ajustes na revisão de testes e cobertura
@@ -942,7 +957,7 @@ estático. Cobertura só conta se prova comportamento.
 **Prompt:**
 
 ````markdown
-Ajustes na etapa 9:
+Ajustes na etapa anterior:
 
 1. Escreva o teste de `app.config.ts`: monte a aplicação com a configuração real de
    providers (não o helper de testes) e verifique que uma requisição com erro chega à
@@ -985,3 +1000,163 @@ Ajustes na etapa 9:
 - 157 testes passando: saíram os cinco de `toPaginationState` e entraram cinco novos.
   `npm run lint`, `prettier --check`, `npm run build` e `npm test -- --coverage` passam sem
   erros nem avisos.
+
+**Ajustes manuais:**
+
+---
+
+## 2026-09-23 — README e documentação final
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: README e documentação final
+Documentação apenas. Não altere código de produção nem testes.
+
+Antes de escrever, percorra o repositório e o `docs/ai-log.md` para levantar as decisões já
+tomadas. Não invente conteúdo: tudo o que for afirmado precisa ser verificável no código.
+Confira que todo comando citado funciona de fato, executando-o.
+
+## README.md
+Escreva em português, direto e sem enchimento. Sem emojis, sem badges decorativos, sem
+seções vazias. Prefira frases curtas a parágrafos longos.
+
+1. **Título e descrição** — o que a aplicação faz, em dois ou três parágrafos: as duas views,
+   a origem dos dados (API pública da Outsera, sem back-end próprio) e o contexto de teste
+   técnico.
+
+2. **Stack** — versões reais lidas do `package.json`, não aproximadas.
+
+3. **Pré-requisitos e instalação** — versão do Node (a mesma do `.nvmrc`), `npm install`.
+
+4. **Como rodar** — desenvolvimento, build de produção e como servir o build. Diga em que
+   porta a aplicação sobe.
+
+5. **Como rodar os testes** — comando dos testes, comando com cobertura, número atual de
+   testes e os percentuais de cobertura por categoria. Explique que o threshold está
+   configurado e o que acontece se cair.
+
+6. **Funcionalidades** — o que cada view faz, em termos de usuário. Inclua a tabela de
+   requisitos versus testes produzida na etapa anterior, ligando cada requisito do documento
+   ao teste que o prova.
+
+7. **Arquitetura** — a estrutura de pastas comentada e as ideias que a sustentam:
+   organização por feature, separação entre containers e componentes apresentacionais,
+   lógica derivada em funções puras, painéis autônomos com estados independentes, e a divisão
+   entre o `MovieApiService` (wrapper puro do `HttpClient`) e o `rxResource` nas features.
+
+8. **Decisões técnicas** — a seção mais importante. Uma subseção por decisão, cada uma com
+   o problema, a escolha e a justificativa. Cubra, no mínimo:
+   - `rxResource` nas features em vez de `httpResource` direto, e por quê
+   - ausência de gerenciador de estado global (NgRx), e por que o escopo não justifica
+   - TypeScript em modo strict e `strictTemplates`
+   - Bootstrap apenas CSS, sem ng-bootstrap nem Angular Material, e o efeito disso no
+     tamanho do bundle (com o ajuste de budget)
+   - o top 3 de estúdios ser responsabilidade do front-end, com desempate alfabético para
+     resultado determinístico
+   - tratamento de empates em `min` e `max`
+   - normalização da resposta de `/winnersByYear`
+   - `winner: false` ser enviado à API, ao contrário de filtro vazio
+   - estados de loading, erro e vazio por painel, em vez de um estado global
+   - estados renderizados dentro da tabela na lista (filtros seguem editáveis) e fora dela
+     nos painéis do dashboard: explique a diferença de contexto
+   - cabeçalhos da tabela não permanecerem visíveis durante o carregamento
+   - sincronização do estado da lista com query params: considerada, analisada e deixada
+     fora do escopo; explique o benefício que ela traria
+   - ausência de CI, se a etapa do GitHub Actions ainda não tiver sido feita quando você
+     escrever esta seção; caso já exista, descreva o pipeline
+
+9. **Limitações conhecidas** — descreva limitações que falamos durante o desenvolvimento.
+
+10. **Uso de ferramentas de IA** — o processo adotado: `CLAUDE.md` com as instruções
+    persistentes, desenvolvimento em etapas com revisão humana entre elas, e o registro em
+    `docs/ai-log.md`. Deixe explícito que todo o código foi revisado, e mencione que o log
+    inclui os pontos em que sugestões do agente foram corrigidas ou rejeitadas.
+
+## docs/ai-log.md
+Revise o arquivo inteiro:
+- confira que existe uma entrada por etapa, em ordem cronológica
+- padronize o formato das entradas
+- corrija informações desatualizadas, como a nota sobre query params
+- adicione um cabeçalho explicando o propósito do documento e como ele foi produzido
+Não invente ajustes manuais que não aconteceram: as seções preenchidas por mim permanecem
+como estão.
+
+# Critérios de aceite
+- Todo comando citado no README foi executado e funciona.
+- Nenhuma afirmação sobre o código que não seja verificável no repositório.
+- Nenhuma seção vazia ou com texto genérico de template.
+- `npm run lint`, `npm test` e `npm run build` continuam passando.
+````
+
+**Resultado:**
+
+- `README.md` reescrito com as dez seções pedidas. Versões da stack copiadas do `package.json`;
+  números de testes e de cobertura tirados de uma execução de `npm run test -- --coverage`
+  (157 testes; statements 99,59%, branches 100%, functions 100%, lines 99,39%). A tabela de
+  requisitos versus testes foi remontada a partir dos nomes dos `it` nos specs atuais.
+- "Decisões técnicas" com uma subseção por decisão (problema, escolha e justificativa), incluindo
+  duas além das pedidas: reset de página com `linkedSignal` e a ausência de CI e de git hooks.
+  Não há `.github/` no repositório, então a seção descreve a ausência de pipeline.
+- Correção em relação ao README anterior: o CSS do Bootstrap não é a maior parte do bundle
+  inicial, e sim o maior arquivo dele (230,87 kB de 502,02 kB).
+- Comandos executados para conferir o README: `npm install` (sem alterar o lock); `npm start` (respondeu em `http://localhost:4200/`); `npm run build`;
+  `npx serve -s dist/app/browser -l 3000` (respondeu 200 em `/movies`, com o fallback para o
+  `index.html`); `npm test`; `npm run test:watch`; `npm run test -- --coverage`; `npm run lint`;
+  `npm run format:check`. A API responde com `access-control-allow-origin: *`, então o build
+  servido em outra porta também consegue chamá-la.
+- Nenhum código de produção ou teste foi alterado. `npm run lint`, `npm test`, `npm run build` e
+  `npm run format:check` passaram.
+
+**Ajustes manuais:**
+
+---
+
+## 2026-09-23 — Ajustes no README e no CLAUDE.md
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Considerações: 
+- Remova tudo sobre toUiPage, já que não é usado.
+- Atualize o CLAUDE.md com as novas mudanças feitas no projeto
+- Crie um script de build e utilize-o no README
+
+Adicione estes itens a um novo registro da doc ai-log.md
+````
+
+**Resultado:**
+
+- `toUiPage` removida de `shared/utils/pagination.ts`, junto com os dois testes em
+  `pagination.spec.ts`. Nenhuma outra referência em `src/`. A limitação correspondente saiu do
+  README; no log, a menção histórica recebeu uma nota de revisão.
+- Script `serve:prod` no `package.json`: `npm run build && npx --yes serve -s dist/app/browser -l 3000`.
+  O `npm run build` já existia, então o script novo cobre o que faltava: gerar o build e servi-lo
+  (`serve` baixado pelo `npx`, sem virar dependência). O README passou a usá-lo em "Como rodar".
+  Executado: o build concluiu e `/movies` respondeu 200 em `http://localhost:3000/`.
+- `CLAUDE.md` atualizado com o estado atual do projeto:
+  - stack: jsdom, `@vitest/coverage-v8`, ausência de git hooks e de CI; o repositório Git na
+    pasta acima, com o back-end em `api/`;
+  - comandos: `serve:prod`, `test:watch`, `format` e `format:check`, com as portas;
+  - estrutura de pastas real: sem `movie-filters/` (os filtros ficam na página), com
+    `not-found/`, `src/environments/` e `src/testing/`, e a lista atual de funções puras;
+  - convenções: arquivos sem o sufixo `.component`, nada de função exportada sem uso em
+    produção, regras de ESLint contra `any` e asserções de tipo;
+  - arquitetura: a sincronização com query params saiu e deu lugar ao estado em signals com
+    `linkedSignal`; onde ficam os estados de loading, erro e vazio; o comportamento do
+    interceptor;
+  - testes: helpers de `src/testing/`, a sincronização zoneless (inclusive com fake timers) e a
+    regra dos thresholds de cobertura;
+  - forma de trabalhar: prompt integral no ai-log e README coerente com o código.
+- README com os números novos: 155 testes; statements 99,59% (496/498), branches 100%, functions
+  100% (103/103), lines 99,39% (327/329). Os thresholds continuam válidos pela regra (98/99/99/98).
+- `npm run lint`, `npm test`, `npm run test -- --coverage`, `npm run build`, `npm run serve:prod` e
+  `npm run format:check` passaram.
+
+**Ajustes manuais:**

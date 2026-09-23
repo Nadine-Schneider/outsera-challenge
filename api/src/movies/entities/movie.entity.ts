@@ -6,7 +6,7 @@ import {
   ManyToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { Producer } from './producer.entity';
+import { Producer } from '../../producers/entities/producer.entity';
 import { Studio } from './studio.entity';
 
 export const MOVIE_PRODUCERS_TABLE = 'movie_producers';

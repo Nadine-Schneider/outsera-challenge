@@ -85,8 +85,8 @@ completo; não crie abstrações antes de serem necessárias.
 src/
   config/        # configuração tipada e validação das variáveis de ambiente
   database/      # configuração do TypeORM
-  movies/        # entidades Movie, Producer, Studio e endpoints /movies
-  producers/     # endpoint /producers/award-intervals e cálculo dos intervalos
+  movies/        # entidades Movie e Studio e endpoints /movies
+  producers/     # entidade Producer, endpoint /producers/award-intervals e cálculo dos intervalos
   csv-import/    # importação do CSV no bootstrap e parser de nomes
 test/
   fixtures/      # CSVs pequenos, um por cenário

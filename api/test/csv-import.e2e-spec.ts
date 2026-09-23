@@ -2,7 +2,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DataSource } from 'typeorm';
-import type { Movie, Producer, Studio } from '../src/movies/entities';
+import type { Movie, Studio } from '../src/movies/entities';
+import type { Producer } from '../src/producers/entities';
 import { createTestApp, fixturePath, TestApp } from './utils/create-test-app';
 
 interface ImportedMovie {

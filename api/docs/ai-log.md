@@ -202,3 +202,71 @@ Mantenha o teste de fumaça existente passando.
   sequenciais na ordem do arquivo e dos produtores e estúdios de cada filme. Invertendo os
   ids devolvidos por `saveMovies`, 4 testes falham, o que confirma que desalinhamentos são
   detectados.
+
+---
+
+## 2026-09-22 — Reorganização das entidades por módulo
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+```markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: refatorar a organização das entidades
+
+A entidade `Producer` está em `src/movies/entities`, mas o caso de uso dela (o endpoint de intervalos
+de prêmios) pertence ao módulo `producers`. Mova a entidade para o módulo dono do seu caso de uso.
+
+1. Mova `producer.entity.ts` para `src/producers/entities/` e atualize todos os imports.
+2. `Movie` e `Studio` permanecem em `src/movies/entities/`. `Studio` não ganha módulo próprio porque
+   não tem caso de uso nem endpoint; registre essa decisão em "Decisões técnicas" no README.
+3. Ajuste os registros de `TypeOrmModule.forFeature` para que cada módulo declare apenas as entidades
+   cujos repositórios ele injeta. Um mesmo entity pode ser registrado em mais de um módulo.
+4. Mantenha as relações com a forma lazy dos decorators (`() => Producer`), de modo que os imports
+   cruzados entre arquivos de entidade não gerem dependência circular.
+5. Não use `forwardRef` e não faça o `ProducersModule` importar o `MoviesModule` (nem o contrário).
+   Se isso parecer necessário, pare e me explique o motivo antes de prosseguir.
+6. Atualize a árvore de pastas na seção "Arquitetura" do CLAUDE.md.
+
+# Restrições
+- Refactor sem mudança de comportamento: nomes de tabelas, de colunas e o schema resultante
+  permanecem idênticos.
+- Não altere nenhum arquivo de teste nem nenhuma asserção existente.
+
+# Critérios de aceite
+- `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros, com os testes inalterados.
+- Nenhuma ocorrência de `forwardRef` em `src/`.
+- `git diff --stat` nos arquivos de teste está vazio.
+```
+
+**Resultado:**
+
+- `producer.entity.ts` movido com `git mv` para `src/producers/entities/`, com barrel
+  `src/producers/entities/index.ts`. Os arquivos de entidade importam uns aos outros
+  diretamente (`../../movies/entities/movie.entity`, `../../producers/entities/producer.entity`),
+  sem passar pelos barrels, e as relações seguem na forma lazy (`() => Producer`, `() => Movie`).
+- Conflito no item 3: nenhum módulo injeta repositórios (a importação usa o `DataSource`), então
+  a leitura literal deixaria todos os módulos sem `forFeature`, e o `autoLoadEntities` criaria um
+  schema vazio. A IA perguntou antes de seguir e a opção escolhida foi registrar cada entidade no
+  módulo dono: `MoviesModule` com `forFeature([Movie, Studio])` e `ProducersModule` com
+  `forFeature([Producer])`.
+- `CsvImportModule` deixou de importar o `MoviesModule` (só servia para expor repositórios que
+  ninguém injeta) e o `MoviesModule` deixou de exportar o `TypeOrmModule`. Nenhum módulo de
+  domínio importa outro e não há `forwardRef` em `src/`.
+- Numa primeira versão, `src/movies/entities/index.ts` continuou reexportando `Producer`,
+  porque `test/csv-import.e2e-spec.ts` importava o tipo de lá e os testes não podiam ser
+  alterados. Num pedido seguinte ("Corrija o teste apontado no item 2"), o import do teste
+  passou a ser `import type { Producer } from '../src/producers/entities'`, e a reexportação
+  foi removida. Nenhuma asserção mudou.
+- `csv-import.service.ts` passou a importar `Producer` de `../producers/entities`.
+- README: nova seção "Organização das entidades" em "Decisões técnicas" (por que `Studio` fica em
+  `movies`, imports lazy, módulos independentes e critério do `forFeature`). CLAUDE.md: árvore da
+  seção "Arquitetura" atualizada.
+- Verificações: `npm run build`, `npm run lint` e `npm run test:e2e` (12 testes) passaram;
+  `git diff --stat -- test` mostra apenas a troca do import. O `sqlite_master` (tabelas, colunas e índices) e as contagens
+  de linhas após importar `data/Movielist.csv` foram comparados antes e depois da mudança e são
+  idênticos.
+
+**Ajustes manuais:**

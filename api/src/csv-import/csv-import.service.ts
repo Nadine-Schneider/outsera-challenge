@@ -9,9 +9,9 @@ import {
   Movie,
   MOVIE_PRODUCERS_TABLE,
   MOVIE_STUDIOS_TABLE,
-  Producer,
   Studio,
 } from '../movies/entities';
+import { Producer } from '../producers/entities';
 import { parseNameList } from './name-list.parser';
 
 const REQUIRED_COLUMNS = [

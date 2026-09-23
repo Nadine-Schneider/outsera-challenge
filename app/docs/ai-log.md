@@ -158,3 +158,143 @@ projeto de back-end desta mesma avaliação, que não usa git hooks nem lint-sta
   servidor foi encerrado.
 
 **Ajustes manuais:**
+
+---
+
+### Ajuste manual — troca de `httpResource` por `rxResource` na camada de dados
+
+**Data:** 2026-09-23
+**Onde:** `CLAUDE.md` (seção Stack e seção Arquitetura)
+
+**Contexto.** O `CLAUDE.md` definia originalmente o consumo da API com `httpResource`.
+Identifiquei um atrito de design: o `httpResource` recebe a URL
+diretamente e precisa ser criado em contexto de injeção, o que empurraria a montagem de
+URL e query params para dentro dos componentes. Isso quebraria a separação de camadas e
+deixaria o serviço de API sem uma superfície testável de forma isolada.
+
+**Decisão.** Manter o `MovieApiService` como wrapper puro do `HttpClient`, retornando
+`Observable<T>` e concentrando a montagem de URL e parâmetros; e envolver esses métodos
+com `rxResource` nas features. O `rxResource` também é estável no Angular 22 e entrega
+`value()`, `isLoading()`, `error()` e cancelamento automático da requisição anterior,
+preservando a ergonomia de signals nos componentes.
+
+---
+
+## 2026-09-23 — Models da API, MovieApiService e interceptor de erro
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: models da API, MovieApiService e interceptor de erro
+Nesta etapa, apenas a camada de acesso a dados. Não implemente painéis, a lista de filmes,
+componentes de UI nem o uso de rxResource nas features. Isso vem nas próximas etapas.
+
+1. Antes de escrever código, consulte https://challenge.outsera.tech/v3/api-docs e confirme
+   os paths, os nomes dos campos e os tipos dos cinco endpoints descritos no CLAUDE.md.
+   Se algo divergir, pare e me avise antes de prosseguir.
+
+2. Crie os models em `core/api/models/`, um arquivo por grupo, com tipos explícitos:
+   - `Movie` (id, year, title, studios, producers, winner)
+   - `Page<T>` refletindo o formato Spring, tipando apenas os campos que a aplicação usa
+     (content, totalElements, totalPages, number, size, first, last). Não replique campos
+     que não serão consumidos.
+   - `YearWithMultipleWinners` e a resposta `{ years: [...] }`
+   - `StudioWithWinCount` e a resposta `{ studios: [...] }`
+   - `ProducerInterval` e `MaxMinWinIntervals` (`{ min, max }`)
+   - `MoviesQuery`, o objeto de consulta da lista: `{ page, size, year?, winner? }`,
+     onde `page` já está na convenção da API (base 0)
+
+3. Crie `shared/utils/pagination.ts` com as funções puras de conversão entre a página exibida
+   na UI (base 1) e a página da API (base 0), além de uma função que, a partir de um `Page<T>`,
+   devolve os dados de que o componente de paginação precisa (página atual na base 1, total
+   de páginas, se é a primeira e se é a última).
+
+4. Crie `shared/utils/winners.ts` com uma função pura que normaliza a resposta de
+   `/winnersByYear` para sempre devolver `Movie[]`, aceitando tanto um array quanto um
+   objeto único quanto uma resposta vazia ou nula.
+
+5. Crie o `MovieApiService` em `core/api/`, injetando `HttpClient` e o token com a URL base.
+   Ele é um wrapper puro do HttpClient: retorna `Observable<T>`, não conhece signals e não
+   guarda estado. Métodos:
+   - `getMovies(query: MoviesQuery): Observable<Page<Movie>>`
+   - `getYearsWithMultipleWinners(): Observable<YearWithMultipleWinners[]>`
+   - `getStudiosWithWinCount(): Observable<StudioWithWinCount[]>`
+   - `getMaxMinWinIntervalForProducers(): Observable<MaxMinWinIntervals>`
+   - `getWinnersByYear(year: number): Observable<Movie[]>`
+
+   Regras:
+   - Os três endpoints que devolvem um objeto com uma única chave (`years`, `studios`) são
+     desembrulhados aqui, para que o resto da aplicação receba o array direto.
+   - `getWinnersByYear` usa a função de normalização do item 4.
+   - Monte os parâmetros com `HttpParams`. Parâmetros opcionais indefinidos **não podem
+     aparecer na query string** — nada de `winner=undefined` ou `year=`.
+   - Nenhuma URL hardcoded: tudo derivado do token de URL base.
+
+6. Crie um interceptor funcional em `core/interceptors/` que capture `HttpErrorResponse` e
+   a converta num erro tipado da aplicação, com uma mensagem legível para a UI e distinção
+   entre falha de rede, 4xx e 5xx. Registre-o no `app.config.ts` via `withInterceptors`.
+   O interceptor não faz retry, não loga em console em produção e não engole o erro:
+   ele propaga o erro convertido.
+
+7. Testes (`*.spec.ts` ao lado de cada arquivo), usando `provideHttpClientTesting` e
+   `HttpTestingController`:
+   - `MovieApiService`: para cada método, verifique a URL chamada, o método HTTP e os
+     parâmetros. Inclua explicitamente os casos em que `year` e `winner` estão ausentes e
+     assert que os parâmetros **não** estão presentes na requisição; e o caso `winner: false`,
+     garantindo que ele é enviado como `false` e não omitido por ser falsy.
+   - Desembrulho de `years` e `studios`, e resposta vazia devolvendo array vazio.
+   - `getWinnersByYear`: array, objeto único, resposta nula e ano sem vencedores.
+   - Funções puras de paginação e de normalização, cobrindo os limites (primeira página,
+     última página, página única, nenhum resultado).
+   - Interceptor: erro de rede, 404 e 500 produzem o erro tipado esperado.
+   - Chame `httpMock.verify()` no `afterEach`.
+
+# Critérios de aceite
+- `npm run lint`, `npm test` e `npm run build` passam sem erros.
+- Nenhum teste faz requisição de rede real.
+- Nenhum `any` e nenhum `as` para contornar tipagem no código de produção.
+- O `MovieApiService` não importa nada de `@angular/core/rxjs-interop` nem usa signals.
+````
+
+**Resultado:**
+
+- OpenAPI conferido: paths, campos e tipos dos cinco endpoints batem com o CLAUDE.md. Diferenças
+  apenas de nome de schema (`StudioCountPerWin`, `ProducerWithInterval`), sem impacto. Observação:
+  o OpenAPI documenta o erro como `{ status, timestamp, message }`, mas a API real devolve
+  `ProblemDetail` (`{ type, title, status, detail, instance }`). Por isso o interceptor não
+  depende do corpo do erro.
+- Models em `core/api/models/`: `movie.model.ts` (`Movie`, `MoviesQuery`,
+  `WinnersByYearResponse`), `page.model.ts`, `year-with-multiple-winners.model.ts`,
+  `studio-with-win-count.model.ts` e `producer-interval.model.ts`. Propriedades `readonly`;
+  os arrays ficaram mutáveis (`T[]`) para casar com as assinaturas pedidas no serviço.
+- `shared/utils/pagination.ts`: `toApiPage` (com piso na primeira página), `toUiPage` e
+  `toPaginationState`, que usa os campos `first`/`last` devolvidos pela API.
+- `shared/utils/winners.ts`: `normalizeWinners` (array, objeto único, `null`/`undefined`).
+- `core/api/movie-api.service.ts`: wrapper do `HttpClient`, sem signals; filtros opcionais só
+  entram no `HttpParams` quando `!== undefined`, então `winner: false` é enviado. `years` e
+  `studios` são desembrulhados, com corpo nulo virando array vazio.
+- `core/interceptors/app-http-error.ts` (`AppHttpError` com `kind`: `network`, `client`,
+  `server` ou `unknown`, `status`, `url` e mensagem em inglês para a UI; 404 tem mensagem
+  própria) e `http-error.interceptor.ts`, registrado em `app.config.ts` via
+  `withInterceptors`. Sem retry, sem log; erros que não são `HttpErrorResponse` passam intactos.
+- Specs ao lado de cada arquivo (34 testes novos, 43 no total). `npm run lint`, `npm test` e
+  `npm run build` passaram.
+
+**Ajustes manuais:**
+
+- Removido o tratamento especial do 404 em `app-http-error.ts` (constante `NOT_FOUND_MESSAGE`).
+  Nenhum dos endpoints consumidos documenta 404 (só `/api/movies/{id}`, que não é usado); na
+  aplicação um 404 indicaria erro de configuração, e "dados não encontrados" seria enganoso. O
+  404 passa a usar a mensagem genérica de 4xx, e cada `kind` tem uma única mensagem. O `status`
+  continua disponível no `AppHttpError`.
+- No spec do interceptor, o teste de 404 agora espera a mensagem genérica, e o teste de 400
+  foi removido por ficar redundante.
+- Comentário de `WinnersByYearResponse` (`core/api/models/movie.model.ts`) reescrito para
+  explicar a origem de cada forma do tipo: o OpenAPI e a API real devolvem array, o PDF do teste
+  mostra um objeto único (por isso os dois são aceitos), e `null` cobre corpo vazio, que o
+  `HttpClient` converte em `null`. O tipo foi mantido, e o `TODO` que pedia a revisão do
+  comentário foi removido.

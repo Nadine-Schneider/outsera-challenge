@@ -21,7 +21,7 @@ então o diferencial está nos detalhes, não no volume de código.
 
 - Angular 22 (standalone components, signals, zoneless, `OnPush` por padrão), TypeScript em modo strict
 - Roteamento com lazy loading via `loadComponent`
-- `provideHttpClient` + `httpResource` para consumo da API (estável no v22)
+- `provideHttpClient` + `rxResource` para consumo da API (estável no v22)
 - Bootstrap 5 **apenas o CSS**, para reproduzir o layout dos anexos; sem ng-bootstrap e sem Angular Material
 - Vitest (runner padrão do Angular CLI) + `HttpTestingController` para os testes
 - ESLint (angular-eslint) + Prettier 
@@ -122,10 +122,12 @@ src/app/
   falhar, os outros três continuam funcionando. Nada de um único loading global cobrindo o dashboard.
 - **Toda lógica derivada vive em funções puras** em `shared/utils`, fora dos componentes: ordenação do
   top 3, conversão de página, normalização de resposta.
-- **Consumo de dados com `httpResource`**, cuja função reativa é derivada dos signals de filtro e página.
-  Isso dá `value()`, `isLoading()`, `error()` e cancelamento automático da requisição anterior sem
-  gerenciar subscription na mão. Quando a função reativa retorna `undefined`, nenhuma requisição é feita —
-  use isso para o painel de busca por ano.
+- **Consumo de dados com `rxResource`** nas features, cuja `stream` chama o `MovieApiService`
+  a partir dos signals de filtro e página. Isso dá `value()`, `isLoading()`, `error()` e
+  cancelamento automático da requisição anterior sem gerenciar subscription na mão. O
+  `MovieApiService` permanece um wrapper puro do `HttpClient`, sem conhecer signals.
+  Quando a função reativa retorna `undefined`, nenhuma requisição é feita — use isso para o
+  painel de busca por ano.
 - **Os filtros e a página da lista são sincronizados com os query params** da rota
   (`/movies?year=1986&winner=true&page=2`), para que o link seja compartilhável e o F5 preserve o estado.
   A rota é a fonte da verdade do estado da lista.

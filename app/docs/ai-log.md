@@ -662,3 +662,152 @@ zoneless usado na tarefa anterior.
   `submit` direto no form com "198", passando por cima do botão desabilitado, e confirma que a
   guarda não deixa sair requisição. No Chrome, via DevTools Protocol, um Enter de verdade no
   campo buscou 1987, e com "198" nada foi requisitado.
+
+---
+
+## 2026-09-23 — View da lista de filmes
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: view da lista de filmes
+Substitua o placeholder da rota 'movies' pela lista completa, conforme o anexo 2.
+Nesta etapa não sincronize o estado com os query params da rota: isso vem na próxima.
+
+1. `features/movies/movies-list.page.ts`, com o título "List movies".
+   Tamanho de página fixo em 15, definido como constante nomeada.
+
+2. Estado, com signals:
+   - `currentPage` (base 1, exibida na UI)
+   - `yearFilter` (string do campo de texto) e `winnerFilter` (`boolean | undefined`,
+     onde `undefined` é "todos")
+   - o ano usado na requisição passa por debounce de 400 ms, com
+     `toSignal(toObservable(yearFilter).pipe(debounceTime(400)))`. Não implemente debounce
+     manual com `setTimeout`.
+   - só entra na requisição um ano com exatamente 4 dígitos; qualquer outro valor é tratado
+     como ausente
+   - **trocar qualquer filtro reseta `currentPage` para 1.** Isso não pode depender de o
+     usuário lembrar de voltar à primeira página.
+   - a conversão da página da UI (base 1) para a da API (base 0) usa a função pura de
+     `shared/utils/pagination.ts`.
+
+3. `rxResource` cujo `params` deriva de página, ano com debounce e filtro de vencedor.
+   Requisitos:
+   - parâmetros ausentes não vão para a query string (`year` vazio, `winner` em "todos")
+   - `winner: false` **é enviado**; não pode ser omitido por ser falsy
+   - o `stream` chama `MovieApiService.getMovies` e mapeia o conteúdo para o view model
+     do item 4
+
+4. `shared/utils/movie-row.ts` — função pura que converte `Movie` no tipo de linha da tabela:
+   `{ id: number; year: number; title: string; winner: 'Yes' | 'No' }`.
+   A `DataTableComponent` permanece sem formatação por célula.
+
+5. Tabela, conforme o anexo 2:
+   - colunas: ID, Year, Title, Winner?
+   - os filtros ficam **dentro do cabeçalho**, na segunda linha, usando o slot de projeção
+     criado na etapa 3:
+     - sob "Year": campo de texto com placeholder "Filter by year", input numérico apenas,
+       máximo de 4 caracteres
+     - sob "Winner?": `<select>` com as opções "Yes/No" (todos), "Yes" e "No"
+     - as células sob "ID" e "Title" ficam vazias
+   - ambos os campos com `aria-label`, já que não há `<label>` visível
+   - `trackBy` pelo `id` do filme
+
+6. Estados, no mesmo padrão dos painéis:
+   - loading, erro (com a mensagem do `AppHttpError` e "Try again") e vazio
+   - o estado vazio distingue "nenhum filme cadastrado" de "nenhum resultado para os filtros
+     aplicados"; na segunda mensagem, mencione que os filtros podem ser ajustados
+
+7. `PaginationComponent` abaixo da tabela, recebendo a página atual e o total de páginas
+   vindos da resposta, e alterando `currentPage` no `pageChange`.
+
+# Testes
+Mesmo padrão de sincronização zoneless das etapas anteriores.
+
+- carrega a primeira página ao inicializar, com `page=0` e `size=15`
+- renderiza uma linha por filme, com "Yes"/"No" na coluna Winner?
+- filtro de ano: não dispara antes do debounce; dispara uma única vez após o debounce;
+  valor com menos de 4 dígitos não vai para a query string. Use fake timers do Vitest.
+- filtro de vencedor: "Yes" envia `winner=true`; "No" envia `winner=false`;
+  "Yes/No" **não envia** o parâmetro
+- trocar o filtro de ano estando na página 3 dispara a requisição com `page=0`
+- trocar o filtro de vencedor estando na página 3 dispara a requisição com `page=0`
+- clicar em "próxima" na paginação dispara a requisição com a página seguinte, preservando
+  os filtros ativos
+- erro 500 mostra o estado de erro; "Try again" refaz a requisição com os mesmos parâmetros
+- resposta vazia com filtros ativos mostra a mensagem de "nenhum resultado para os filtros"
+- função pura `movie-row`: converte `winner` true e false, e lista vazia
+
+# Critérios de aceite
+- `npm run lint`, `npm test` e `npm run build` passam sem erros.
+- `httpMock.verify()` no `afterEach`.
+- Nenhum `any` no código de produção.
+- Rodando `npm start`: a lista carrega, os dois filtros funcionam isoladamente e
+  combinados, a paginação navega e trocar filtro volta para a página 1.
+- O layout não quebra em 768x1280 nem em 360x800; a tabela rola horizontalmente em telas
+  estreitas em vez de estourar a página.
+````
+
+**Resultado:**
+
+- `MoviesListPage` em `features/movies/`, dentro de `PanelComponent` com o título
+  "List movies", com as constantes `MOVIES_PAGE_SIZE = 15` e `YEAR_FILTER_DEBOUNCE_MS = 400`.
+- Estado: `yearFilter` (string do campo, só dígitos, até 4) e `winnerFilter`
+  (`boolean | undefined`). O ano passa por `toSignal(toObservable(yearFilter).pipe(debounceTime(400)))`
+  e depois por `parseYear` (nova função pura em `shared/utils/year.ts`), que devolve
+  `undefined` para qualquer valor sem exatamente 4 dígitos. Um `computed` `filters` reúne ano
+  efetivo e vencedor, com igualdade por campo, então digitar "1" → "19" → "198" não muda os
+  filtros e não gera requisição.
+- **Reset de página:** `currentPage` é um `linkedSignal` cuja fonte é `filters`; qualquer
+  mudança efetiva de filtro volta a página para 1 na mesma propagação, então sai uma única
+  requisição já com `page=0` (sem uma requisição intermediária com a página antiga).
+- `rxResource` com `params` = `{ page: toApiPage(currentPage()), size, ...filters() }`; a
+  omissão de `year`/`winner` indefinidos continua no `MovieApiService` (`!== undefined`), então
+  `winner=false` é enviado. O `stream` mapeia a página para `{ rows, totalPages }` com
+  `toMovieRows` (`shared/utils/movie-row.ts`).
+- Tabela ID / Year / Title / Winner?; a segunda linha do cabeçalho (`appTableFilters`) tem o
+  campo "Filter by year" (`inputmode="numeric"`, `maxlength="4"`) e o `<select>` "Yes/No" /
+  "Yes" / "No", ambos com `aria-label`; células de ID e Title vazias. `trackBy` pelo `id`.
+- Estados: loading, erro e vazio são renderizados **dentro do corpo da tabela** (slot
+  `appTableEmpty`), para que os filtros continuem visíveis e editáveis durante o carregamento e
+  depois de um erro. Mensagens vazias: "No movies found" sem filtros e "No movies match the
+  current filters. Try adjusting the year or winner filter." com filtros.
+- `PaginationComponent` abaixo da tabela, oculto no erro. O total de páginas é um
+  `linkedSignal` que mantém o último valor conhecido enquanto a próxima página carrega, para a
+  paginação não sumir e reaparecer a cada navegação.
+- Larguras mínimas no campo de ano, no select e na coluna Title: em 360px a tabela rola
+  horizontalmente dentro do `.table-responsive` em vez de espremer os controles.
+- Spec da página com 16 testes (fake timers do Vitest; como `fixture.whenStable()` não
+  resolve com timers falsos, as respostas são sincronizadas com
+  `vi.advanceTimersByTimeAsync(0)` + `TestBed.tick()`), specs de `movie-row` e `year`, e o
+  teste de rota de `/movies` passou a verificar o título do painel.
+- 149 testes passando; `npm run lint` e `prettier --check` sem erros; `npm run build` conclui,
+  mas com o aviso de budget do bundle inicial (502,02 kB para um limite de 500 kB; era
+  498,87 kB antes da tarefa).
+- Verificado com o dev server e Chrome headless via DevTools Protocol contra a API real, em
+  768x1280 e 360x800: sem rolagem horizontal da página; página 3 → filtro "Yes" pediu
+  `page=0&winner=true`; "próxima" pediu `page=1&winner=true`; digitar 1986 tecla a tecla gerou
+  uma única requisição `page=0&year=1986&winner=true` (2 filmes); "Yes/No" removeu `winner`;
+  "No" enviou `winner=false`; 2050 mostrou a mensagem de filtros.
+
+**Ajustes manuais:**
+
+- **Budget do bundle inicial.** O `maximumWarning` do budget `initial` no `angular.json` subiu
+  de 500 kB para 700 kB (o `maximumError` continua em 1 MB). O motivo ficou registrado no README,
+  em "Decisões técnicas": o CSS do Bootstrap é importado por inteiro e responde pela maior parte
+  do bundle.
+- **Comentário no spec da lista.** O topo de `movies-list.page.spec.ts` agora explica por que o
+  spec usa `vi.advanceTimersByTimeAsync(0)` + `TestBed.tick()` em vez de `fixture.whenStable()`:
+  os fake timers, necessários para testar o debounce, são incompatíveis com `whenStable()`.
+- **`parseYear` no painel de busca por ano.** O `WinnersByYearPanel` passou a usar o `parseYear`
+  de `shared/utils/year.ts` (em `isValidTerm` e em `search()`), e o `YEAR_PATTERN` local foi
+  removido. Os testes existentes do painel passaram sem alteração.
+- **`toYearDigits` compartilhado.** A limpeza do campo de ano (só dígitos, até 4 caracteres),
+  que estava duplicada em `MoviesListPage.onYearInput` e `WinnersByYearPanel.onInput`, virou a
+  função pura `toYearDigits` em `shared/utils/year.ts`, ao lado de `parseYear`, com três testes
+  próprios. Os dois handlers só chamam a função, escrevem o valor de volta no campo e atualizam
+  o signal. Os testes existentes dos dois componentes passaram sem alteração.

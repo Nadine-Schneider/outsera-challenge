@@ -10,8 +10,7 @@ import { EmptyStateComponent } from '../../../../shared/ui/empty-state/empty-sta
 import { ErrorStateComponent } from '../../../../shared/ui/error-state/error-state';
 import { LoadingIndicatorComponent } from '../../../../shared/ui/loading-indicator/loading-indicator';
 import { PanelComponent } from '../../../../shared/ui/panel/panel';
-
-const YEAR_PATTERN = /^\d{4}$/;
+import { parseYear, toYearDigits } from '../../../../shared/utils/year';
 
 @Component({
   selector: 'app-winners-by-year-panel',
@@ -78,7 +77,7 @@ export class WinnersByYearPanel {
   protected readonly term = signal('');
   private readonly submittedYear = signal<number | undefined>(undefined);
 
-  protected readonly isValidTerm = computed(() => YEAR_PATTERN.test(this.term()));
+  protected readonly isValidTerm = computed(() => parseYear(this.term()) !== undefined);
 
   protected readonly winners = rxResource({
     params: () => this.submittedYear(),
@@ -102,16 +101,15 @@ export class WinnersByYearPanel {
   protected readonly byId = (movie: Movie): number => movie.id;
 
   protected onInput(input: HTMLInputElement): void {
-    const digits = input.value.replace(/\D/g, '').slice(0, 4);
-    input.value = digits;
-    this.term.set(digits);
+    input.value = toYearDigits(input.value);
+    this.term.set(input.value);
   }
 
   protected search(): void {
-    if (!this.isValidTerm()) {
+    const year = parseYear(this.term());
+    if (year === undefined) {
       return;
     }
-    const year = Number(this.term());
     if (year === this.submittedYear()) {
       this.winners.reload();
     } else {

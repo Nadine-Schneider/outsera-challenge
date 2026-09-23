@@ -45,7 +45,9 @@ describe('app routes', () => {
   it('lazy loads the movies list page', async () => {
     await harness.navigateByUrl('/movies');
 
-    expect(heading()).toBe('List movies');
+    expect(harness.routeNativeElement?.querySelector('app-panel h2')?.textContent?.trim()).toBe(
+      'List movies',
+    );
   });
 
   it('renders the not found page for unknown paths', async () => {

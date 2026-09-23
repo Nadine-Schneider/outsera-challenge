@@ -58,4 +58,8 @@ Os artefatos de produção são gerados em `dist/app/browser`.
 
 ## Decisões técnicas
 
+- **Budget do bundle inicial em 700 kB.** O CSS do Bootstrap é importado por inteiro em
+  `src/styles.scss` e responde pela maior parte do bundle inicial; o limite de aviso foi
+  elevado de 500 kB para 700 kB para acomodá-lo. O limite de erro continua em 1 MB.
+
 ## Uso de IA

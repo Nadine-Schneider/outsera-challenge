@@ -27,6 +27,15 @@ describe('ErrorStateComponent', () => {
     expect(alert()?.textContent).toContain('Unable to reach the server.');
   });
 
+  it('falls back to the default message when bound to undefined', async () => {
+    fixture.componentRef.setInput('message', 'Unable to reach the server.');
+    await fixture.whenStable();
+    fixture.componentRef.setInput('message', undefined);
+    await fixture.whenStable();
+
+    expect(alert()?.textContent).toContain('Something went wrong. Please try again.');
+  });
+
   it('emits retry when the "Try again" button is clicked', () => {
     const retry = vi.fn();
     fixture.componentInstance.retry.subscribe(retry);

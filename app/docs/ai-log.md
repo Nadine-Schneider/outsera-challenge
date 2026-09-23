@@ -418,3 +418,132 @@ Um `*.spec.ts` por componente, testando o DOM renderizado, não detalhes interno
 - O teste de ausência do slot passou a verificar explicitamente que o `<thead>` tem um único
   filho, apenas a linha de cabeçalhos com um `th[scope="col"]` por coluna, e que nenhum
   `[appTableFilters]` é renderizado.
+
+---
+
+## 2026-09-23 — Página do dashboard e três painéis
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: página do dashboard e três painéis
+Nesta etapa, o grid do dashboard e três dos quatro painéis. O painel de busca por ano
+("List movie winners by year") fica para a próxima etapa: deixe o espaço dele no grid
+ocupado por um placeholder vazio, sem lógica.
+
+1. `features/dashboard/dashboard.page.ts`
+   - grid com duas colunas em telas largas e uma coluna abaixo de 992px
+   - layout conforme o anexo 1: anos e estúdios na primeira linha; intervalos de produtores
+     e busca por ano na segunda
+   - a página apenas posiciona os painéis; não injeta serviço nem busca dados
+
+2. Cada painel é um container autônomo em `features/dashboard/panels/`, usando
+   `PanelComponent` como invólucro. Cada um injeta o `MovieApiService`, cria o próprio
+   `rxResource` e encadeia os estados no template.
+   
+   Se um endpoint falhar, os outros painéis continuam funcionando.
+
+3. `MultipleWinnersPanel` — título "List years with multiple winners".
+   - colunas: Year, Win Count
+   - usa `DataTableComponent`, sem reordenar os dados: a ordem da API é preservada
+   - estado vazio quando não há anos com mais de um vencedor
+
+4. `TopStudiosPanel` — título "Top 3 studios with winners".
+   - colunas: Name, Win Count
+   - o endpoint devolve **todos** os estúdios: a seleção dos três é responsabilidade
+     do front-end
+   - crie `shared/utils/studios.ts` com uma **função pura** que ordena por `winCount`
+     decrescente, desempata por nome em ordem alfabética e devolve os N primeiros
+     (N com valor padrão 3, parametrizável). A função não altera o array recebido.
+   - o painel apenas chama a função; nenhuma ordenação dentro do template ou do componente
+
+5. `ProducerIntervalsPanel` — título "Producers with longest and shortest interval between wins".
+   - um único painel com duas tabelas: primeiro "Maximum" (dados de `max`), depois "Minimum"
+     (dados de `min`), cada uma com um subtítulo, conforme o anexo 1
+   - colunas: Producer, Interval, Previous Year, Following Year
+   - `min` e `max` são arrays: renderize **todos** os registros, não apenas o primeiro
+   - passe um `trackBy` composto (`producer` + `previousWin`), porque o mesmo produtor pode
+     aparecer mais de uma vez
+   - se um dos arrays vier vazio, a tabela correspondente mostra o estado vazio, sem quebrar
+     a outra
+   - não reordene os dados da API
+
+# Testes
+Um `*.spec.ts` por painel, com `provideHttpClientTesting` e `HttpTestingController`.
+A aplicação é zoneless: depois de responder a requisição no mock, aguarde a estabilização
+(`await fixture.whenStable()`) antes de assertar o DOM. Não use `setTimeout` nem
+`fakeAsync`/`tick` para contornar isso.
+
+Para cada painel:
+- chama o endpoint correto ao inicializar
+- renderiza as linhas esperadas em caso de sucesso
+- exibe o estado de erro quando a requisição falha, e o botão "Try again" refaz a chamada
+- exibe o estado vazio quando a resposta vem sem registros
+
+Específicos:
+- `TopStudiosPanel`: com mais de três estúdios, renderiza exatamente três, na ordem correta
+- `ProducerIntervalsPanel`: renderiza as duas tabelas; com dois registros empatados em `max`,
+  ambos aparecem; com `min` vazio e `max` preenchido, uma tabela mostra vazio e a outra
+  mostra os dados
+- Função pura de estúdios (teste próprio): ordenação, desempate alfabético no terceiro lugar,
+  entrada com menos de três itens, entrada vazia, e confirmação de que o array original não
+  é modificado
+
+- `dashboard.page.spec.ts`: renderiza os quatro invólucros de painel na ordem esperada
+
+# Critérios de aceite
+- `npm run lint`, `npm test` e `npm run build` passam sem erros.
+- Nenhum teste faz requisição de rede real; `httpMock.verify()` roda no `afterEach`.
+- Nenhum `any` no código de produção.
+- Rodando `npm start`, o dashboard carrega os três painéis com dados reais da API.
+- O grid não quebra em 768x1280 nem em 360x800.
+````
+
+**Resultado:**
+
+- `topStudios(studios, count = 3)` em `shared/utils/studios.ts`: copia o array, ordena por
+  `winCount` decrescente com desempate por `localeCompare(..., 'en')` e corta nos `count`
+  primeiros (contagem negativa vira lista vazia). Spec próprio com 7 testes.
+- Três painéis em `features/dashboard/panels/{multiple-winners,top-studios,producer-intervals}/`,
+  cada um com `rxResource` próprio (`defaultValue` para o template não lidar com `undefined`)
+  e a cadeia `isLoading` → `error` (com `reload()` no "Try again") → tabela. O top 3 é aplicado
+  no `stream` (`map(topStudios)`), então o componente e o template não ordenam nada.
+- O estado vazio usa o `emptyMessage` da `DataTableComponent` (cabeçalhos visíveis e uma linha
+  com a mensagem), o que atende naturalmente ao caso de `min` vazio com `max` preenchido.
+- `ProducerIntervalsPanel` com template em arquivo, duas `<section>` com subtítulos `h3`
+  ("Maximum" e depois "Minimum") e `trackBy` `producer|previousWin`.
+- `DashboardPage`: `row g-3` com `col-12 col-lg-6` (duas colunas a partir de 992px), `h1`
+  visualmente oculto e o quarto espaço ocupado por um `app-panel` vazio com o título
+  "List movie winners by year".
+- Testes: nos specs dos painéis, `TestBed.tick()` dispara a primeira renderização (o
+  `fixture.whenStable()` não resolve enquanto a requisição do resource está pendente) e
+  `await fixture.whenStable()` roda depois de cada `flush`. `app.routes.spec.ts` passou a
+  prover `HttpClient` de teste e `API_BASE_URL`, porque o dashboard agora faz requisições.
+- 106 testes passando; `npm run lint`, `npm run build` e `prettier --check` sem erros.
+- Verificado com `ng serve` e Chrome headless: dados reais nos três painéis em 1280x900 (duas
+  colunas) e 768x1280 (uma coluna); em 360px, verificado num iframe, os cartões cabem na tela
+  e as tabelas rolam na horizontal.
+
+**Ajustes manuais:**
+
+- **Mensagem de erro nos painéis.** Os painéis passaram a mostrar a mensagem do `AppHttpError`
+  gerado pelo interceptor. A função `appErrorMessage(error)`, em `core/interceptors/app-http-error.ts`,
+  devolve a mensagem de um `AppHttpError` ou `undefined` para qualquer outro erro, e cada
+  painel a expõe por um `computed` ligado ao `[message]` do `ErrorStateComponent`. O input
+  `message` do componente ganhou um `transform` que troca `undefined` pela mensagem padrão,
+  então o fallback continua definido num único lugar. Os specs dos painéis passaram a
+  registrar o `httpErrorInterceptor` e ganharam um teste que confere a mensagem de erro 500
+  ("The server is unavailable at the moment. Please try again later.") na tela. Também foram
+  adicionados testes para `appErrorMessage` e para o fallback do `ErrorStateComponent`.
+- **Mensagens de estado vazio.** Troquei as mensagens por frases sobre o domínio: "No year has
+  more than one winner" (anos), "No studio has won yet" (estúdios) e "No producer has won more
+  than once" (as duas tabelas de intervalos, porque qualquer intervalo exige ao menos duas
+  vitórias do mesmo produtor). Os specs foram atualizados.
+- **`<h1>` do dashboard.** O `<h1>` usava a classe `visually-hidden` do Bootstrap (esconde
+  por recorte e continua acessível a leitores de tela), não `display: none`. Como o teste de
+  rota pode se ancorar no título visível do primeiro painel ("List years with multiple
+  winners"), o `<h1>` foi removido e o teste em `app.routes.spec.ts` foi atualizado.

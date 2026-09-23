@@ -27,6 +27,10 @@ export function toAppHttpError(error: HttpErrorResponse): AppHttpError {
   return new AppHttpError(kind, error.status, MESSAGES[kind], error.url);
 }
 
+export function appErrorMessage(error: unknown): string | undefined {
+  return error instanceof AppHttpError ? error.message : undefined;
+}
+
 function errorKind(status: number): AppHttpErrorKind {
   if (status === 0) {
     return 'network';

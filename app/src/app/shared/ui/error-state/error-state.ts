@@ -1,5 +1,7 @@
 import { Component, input, output } from '@angular/core';
 
+const DEFAULT_MESSAGE = 'Something went wrong. Please try again.';
+
 @Component({
   selector: 'app-error-state',
   host: { class: 'd-block' },
@@ -16,6 +18,8 @@ import { Component, input, output } from '@angular/core';
   `,
 })
 export class ErrorStateComponent {
-  readonly message = input('Something went wrong. Please try again.');
+  readonly message = input(DEFAULT_MESSAGE, {
+    transform: (message: string | undefined) => message ?? DEFAULT_MESSAGE,
+  });
   readonly retry = output<void>();
 }

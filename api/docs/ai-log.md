@@ -405,3 +405,116 @@ Mantenha os testes das etapas anteriores passando e sem alterações.
   novos só com `producer`, `interval`, `previousWin` e `followingWin`, com o mesmo formato
   dos DTOs, e os testes e2e comparam o corpo inteiro com `toEqual`, então um campo extra
   (como `id`) faria o teste falhar.
+
+---
+
+## 2026-09-23 — Fechamento do projeto (documentação e revisão)
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+```markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: fechamento do projeto (documentação e revisão)
+
+Não altere comportamento nem implemente nada novo nesta etapa. Se encontrar um bug ou uma
+inconsistência, não corrija por conta própria: liste no relatório final para eu decidir.
+
+## 1. README.md
+Complete o README lendo o código para confirmar cada informação. Não documente nada que você não
+tenha verificado no repositório.
+- Descrição do projeto e stack utilizada.
+- Pré-requisitos (versão do Node) e instalação.
+- Como rodar a aplicação e como rodar os testes de integração, com os comandos exatos do package.json.
+- Variáveis de ambiente, com valores padrão, incluindo como apontar `MOVIELIST_CSV_PATH` para outro
+  arquivo CSV.
+- Formato esperado do CSV: delimitador, colunas e como múltiplos produtores e estúdios são separados.
+- Seção "Endpoints": `GET /producers/award-intervals`, com exemplo real de requisição e de resposta
+  (use o resultado obtido com `data/Movielist.csv`), status codes e o link para `/api-docs`.
+- Seção "Decisões técnicas", cobrindo:
+  - escopo mantido no requisito solicitado, com um único endpoint, e como a API atende ao nível 2 de
+    maturidade de Richardson;
+  - `min` e `max` numa mesma resposta, conforme o formato especificado no enunciado;
+  - separação de produtores por `, and`, `,` e ` and `;
+  - intervalos entre vitórias consecutivas, empates retornando todos os registros e ordenação
+    determinística;
+  - duas vitórias no mesmo ano gerando intervalo 0;
+  - banco em memória com `synchronize: true`, justificado por ser efêmero;
+  - organização dos módulos, incluindo por que `Studio` não tem módulo próprio;
+  - camada de repository isolando o acesso a dados, sem interface nem token de injeção.
+- Seção "Limitações conhecidas": identidade do produtor baseada apenas no nome, sem identificador no
+  CSV, o que impede distinguir homônimos.
+- Seção "Testes": o que cada arquivo de teste cobre e quais fixtures existem, com uma linha por cenário.
+
+## 2. Revisão final
+Verifique e relate, sem corrigir:
+- se todos os requisitos do enunciado estão atendidos, um a um;
+- se restou código morto, import não utilizado, `console.log`, `any` ou TODO;
+- se existe algum `*.spec.ts` em `src/`;
+- se algum arquivo gerado (node_modules, dist, .env) está versionado indevidamente;
+- o resultado de `npm run build`, `npm run lint` e `npm run test:e2e`;
+- a saída de `git log --oneline`, apontando commits com mensagem fora do padrão Conventional Commits.
+
+# Critérios de aceite
+- README permite que alguém sem contexto clone, rode e teste o projeto apenas seguindo as instruções.
+- Nenhuma alteração em arquivos de `src/` ou `test/`.
+```
+
+**Resultado:**
+
+- `README.md` reescrito a partir da leitura de `src/`, `test/`, `package.json`, `.nvmrc` e
+  `.gitignore`: stack, pré-requisitos, instalação com `git clone` e `cd outsera-challenge/api`,
+  execução, testes, variáveis de ambiente (com exemplos para bash, PowerShell e `.env`),
+  formato do CSV (inclusive mapeamento por nome, linhas inválidas e duplicadas), endpoint com
+  requisição, resposta e status codes, decisões técnicas, limitações conhecidas e tabelas de
+  arquivos de teste e fixtures.
+- A resposta e os status codes documentados foram obtidos rodando `node dist/main.js` e
+  chamando a API: `GET /producers/award-intervals` respondeu 200 com Joel Silver / Matthew
+  Vaughn; rota inexistente e `POST` na rota responderam 404; `/api-docs` respondeu 200. As
+  mensagens de falha (CSV inexistente e `PORT` inválida) também foram conferidas na prática.
+- Revisão final relatada à parte, sem correções. Pontos levantados: `console.log` em
+  `src/main.ts`; regra `@typescript-eslint/no-explicit-any` desligada no `eslint.config.mjs`;
+  reexportações sem uso em `src/config/index.ts`; `POST` na rota respondendo 404 em vez de 405;
+  `test/app.e2e-spec.ts` sem fixture própria; regra de linhas duplicadas descartando um
+  `winner = yes` posterior; árvore do `CLAUDE.md` citando endpoints `/movies` inexistentes.
+- Verificações: `npm run build`, `npm run lint` (sem alterações) e `npm run test:e2e`
+  (21 testes, 3 suítes) passaram. Nenhum arquivo de `src/` ou `test/` foi alterado.
+
+**Ajustes manuais:**
+
+---
+
+## 2026-09-23 — Ajustes após a revisão final
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+```markdown
+1 - Ok, manter assim
+2 - Ok, manter
+3 - Remover o export desnecessário ou corrigir os imports
+4 - Ok, manter
+5 - Regisitre a regra no `CLAUDE.md`
+6 - Ok, manter
+7 - Atualize o que for necessário no `CLAUDE.md`
+8 - Ok, manter
+```
+
+**Resultado:**
+
+- Item 3: `src/config/index.ts` passou a exportar só `AppConfigModule` e `AppConfigService`,
+  os únicos nomes importados pelo barrel. `DEFAULT_PORT`, `DEFAULT_MOVIELIST_CSV_PATH`,
+  `EnvironmentVariables` e `validateEnvironment` continuam exportados por
+  `environment-variables.ts`, de onde já eram importados dentro de `src/config/`.
+- Item 5: nova regra em "Regras de negócio" do `CLAUDE.md`: linhas duplicadas (mesmo `year`,
+  `title`, `studios` e `producers`, sem considerar a ordem dos nomes) são ignoradas com
+  warning, e vale a primeira ocorrência, inclusive o seu `winner`.
+- Item 7: árvore da seção "Arquitetura" do `CLAUDE.md` atualizada: `movies/` sem endpoints,
+  `producers/` com repository e DTOs e a pasta `test/utils/`.
+- Verificações: `npm run build`, `npm run lint` e `npm run test:e2e` (21 testes, 3 suítes)
+  passaram. Nenhum comportamento foi alterado.
+
+**Ajustes manuais:**

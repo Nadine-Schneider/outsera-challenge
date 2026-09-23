@@ -45,6 +45,9 @@ npm run test:e2e     # testes de integração
 - O campo `producers` (e também `studios`) contém vários nomes. Separe por `, and`, `,` e `and`
   (ex.: `"A, B, and C"`, `"A, B and C"`, `"A and B"`). Faça trim, descarte vazios e remova duplicados
   dentro do mesmo filme.
+- Linhas duplicadas são ignoradas com log de warning. Duas linhas são duplicadas quando têm o mesmo `year`,
+  `title`, `studios` e `producers`, sem considerar a ordem dos nomes. O `winner` não faz parte da
+  comparação: vale a primeira ocorrência, inclusive o seu `winner`.
 - O intervalo é calculado entre vitórias **consecutivas** de um mesmo produtor, com os anos ordenados.
   Vitórias em 2000, 2005 e 2020 geram os intervalos 5 e 15.
 - Produtores com uma única vitória não entram no cálculo.
@@ -85,11 +88,12 @@ completo; não crie abstrações antes de serem necessárias.
 src/
   config/        # configuração tipada e validação das variáveis de ambiente
   database/      # configuração do TypeORM
-  movies/        # entidades Movie e Studio e endpoints /movies
-  producers/     # entidade Producer, endpoint /producers/award-intervals e cálculo dos intervalos
+  movies/        # entidades Movie e Studio (sem endpoints)
+  producers/     # entidade Producer, endpoint /producers/award-intervals, repository, DTOs e cálculo dos intervalos
   csv-import/    # importação do CSV no bootstrap e parser de nomes
 test/
   fixtures/      # CSVs pequenos, um por cenário
+  utils/         # createTestApp: sobe o AppModule com o CSV de cada cenário
 data/
   Movielist.csv  # arquivo padrão
 docs/

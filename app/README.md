@@ -32,9 +32,15 @@ A aplicação sobe em `http://localhost:4200/`.
 Os testes unitários usam Vitest (runner padrão do Angular CLI) e não fazem requisições de rede.
 
 ```bash
-npm test             # execução única
-npm run test:watch   # modo watch
+npm test                     # execução única
+npm run test:watch           # modo watch
+npm run test -- --coverage   # execução única com relatório de cobertura
 ```
+
+A cobertura é medida sobre todo o `src/` (TypeScript e templates), exceto `main.ts`, os arquivos
+de environment, os `*.spec.ts`, os helpers de teste em `src/testing/` e barrels (`index.ts`).
+Os limites mínimos ficam em `angular.json` (`coverageThresholds`); com `--coverage`, o comando
+falha se a cobertura cair abaixo deles. O relatório HTML é gerado em `coverage/app/`.
 
 Lint e formatação:
 

@@ -1,14 +1,17 @@
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { API_BASE_URL } from '../../../../core/api/api-base-url.token';
+import {
+  SERVER_ERROR_MESSAGE,
+  TEST_API_BASE_URL,
+  flushServerError,
+  provideApiTesting,
+} from '../../../../../testing/api-testing';
+import { tableBodyRows, tableHeaders } from '../../../../../testing/table-queries';
 import { YearsWithMultipleWinnersResponse } from '../../../../core/api/models/year-with-multiple-winners.model';
-import { httpErrorInterceptor } from '../../../../core/interceptors/http-error.interceptor';
 import { MultipleWinnersPanel } from './multiple-winners-panel';
 
-const BASE_URL = 'https://api.test/movies';
-const URL = `${BASE_URL}/yearsWithMultipleWinners`;
+const URL = `${TEST_API_BASE_URL}/yearsWithMultipleWinners`;
 
 describe('MultipleWinnersPanel', () => {
   let fixture: ComponentFixture<MultipleWinnersPanel>;
@@ -16,13 +19,7 @@ describe('MultipleWinnersPanel', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(withInterceptors([httpErrorInterceptor])),
-        provideHttpClientTesting(),
-        { provide: API_BASE_URL, useValue: BASE_URL },
-      ],
-    });
+    TestBed.configureTestingModule({ providers: provideApiTesting() });
     httpMock = TestBed.inject(HttpTestingController);
 
     fixture = TestBed.createComponent(MultipleWinnersPanel);
@@ -41,14 +38,8 @@ describe('MultipleWinnersPanel', () => {
   }
 
   async function fail(): Promise<void> {
-    httpMock.expectOne(URL).flush('Server error', { status: 500, statusText: 'Server Error' });
+    flushServerError(httpMock.expectOne(URL));
     await fixture.whenStable();
-  }
-
-  function bodyRows(): string[][] {
-    return Array.from(element.querySelectorAll('tbody tr')).map((row) =>
-      Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent?.trim() ?? ''),
-    );
   }
 
   it('renders the panel title', () => {
@@ -76,11 +67,8 @@ describe('MultipleWinnersPanel', () => {
       ],
     });
 
-    const headers = Array.from(element.querySelectorAll('thead th')).map((th) =>
-      th.textContent?.trim(),
-    );
-    expect(headers).toEqual(['Year', 'Win Count']);
-    expect(bodyRows()).toEqual([
+    expect(tableHeaders(element)).toEqual(['Year', 'Win Count']);
+    expect(tableBodyRows(element)).toEqual([
       ['2015', '2'],
       ['1986', '2'],
       ['1990', '3'],
@@ -91,9 +79,7 @@ describe('MultipleWinnersPanel', () => {
   it('shows the interceptor message when the server fails', async () => {
     await fail();
 
-    expect(element.querySelector('[role="alert"]')?.textContent).toContain(
-      'The server is unavailable at the moment. Please try again later.',
-    );
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain(SERVER_ERROR_MESSAGE);
   });
 
   it('shows the error state and retries the request on "Try again"', async () => {
@@ -107,12 +93,12 @@ describe('MultipleWinnersPanel', () => {
     await respond({ years: [{ year: 1986, winnerCount: 2 }] });
 
     expect(element.querySelector('[role="alert"]')).toBeNull();
-    expect(bodyRows()).toEqual([['1986', '2']]);
+    expect(tableBodyRows(element)).toEqual([['1986', '2']]);
   });
 
   it('shows the empty state when no year has multiple winners', async () => {
     await respond({ years: [] });
 
-    expect(bodyRows()).toEqual([['No year has more than one winner']]);
+    expect(tableBodyRows(element)).toEqual([['No year has more than one winner']]);
   });
 });

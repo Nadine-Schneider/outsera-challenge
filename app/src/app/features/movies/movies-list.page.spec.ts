@@ -2,40 +2,22 @@
 // `fixture.whenStable()`. This spec therefore settles responses with
 // `vi.advanceTimersByTimeAsync(0)` + `TestBed.tick()` instead of `whenStable()`.
 
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import {
-  HttpTestingController,
-  TestRequest,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, TestRequest } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { API_BASE_URL } from '../../core/api/api-base-url.token';
+import {
+  SERVER_ERROR_MESSAGE,
+  TEST_API_BASE_URL,
+  flushServerError,
+  provideApiTesting,
+} from '../../../testing/api-testing';
+import { CANT_STOP_THE_MUSIC, CRUISING } from '../../../testing/movie-fixtures';
+import { tableBodyRows, tableHeaders } from '../../../testing/table-queries';
 import { Movie } from '../../core/api/models/movie.model';
 import { Page } from '../../core/api/models/page.model';
-import { httpErrorInterceptor } from '../../core/interceptors/http-error.interceptor';
 import { MoviesListPage } from './movies-list.page';
 
-const BASE_URL = 'https://api.test/movies';
-
-const MOVIES: Movie[] = [
-  {
-    id: 1,
-    year: 1980,
-    title: "Can't Stop the Music",
-    studios: ['Associated Film Distribution'],
-    producers: ['Allan Carr'],
-    winner: true,
-  },
-  {
-    id: 2,
-    year: 1980,
-    title: 'Cruising',
-    studios: ['Lorimar Productions', 'United Artists'],
-    producers: ['Jerry Weintraub'],
-    winner: false,
-  },
-];
+const MOVIES: Movie[] = [CANT_STOP_THE_MUSIC, CRUISING];
 
 function page(content: Movie[], apiPage = 0, totalPages = 14): Page<Movie> {
   return {
@@ -51,20 +33,14 @@ function page(content: Movie[], apiPage = 0, totalPages = 14): Page<Movie> {
 
 type QueryParams = Record<string, string | null>;
 
-describe('MoviesListPage', async () => {
+describe('MoviesListPage', () => {
   let fixture: ComponentFixture<MoviesListPage>;
   let element: HTMLElement;
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(withInterceptors([httpErrorInterceptor])),
-        provideHttpClientTesting(),
-        { provide: API_BASE_URL, useValue: BASE_URL },
-      ],
-    });
+    TestBed.configureTestingModule({ providers: provideApiTesting() });
     httpMock = TestBed.inject(HttpTestingController);
 
     fixture = TestBed.createComponent(MoviesListPage);
@@ -74,12 +50,13 @@ describe('MoviesListPage', async () => {
   });
 
   afterEach(() => {
-    httpMock.verify();
+    // Restore the real timers first: a failing verify() must not leak fake timers.
     vi.useRealTimers();
+    httpMock.verify();
   });
 
   function expectRequest(): TestRequest {
-    return httpMock.expectOne((request) => request.url === BASE_URL);
+    return httpMock.expectOne((request) => request.url === TEST_API_BASE_URL);
   }
 
   function paramsOf(req: TestRequest): QueryParams {
@@ -161,25 +138,13 @@ describe('MoviesListPage', async () => {
     await respond({ page: '2' }, page(MOVIES, 2));
   }
 
-  function headers(): string[] {
-    return Array.from(element.querySelectorAll('thead th')).map(
-      (th) => th.textContent?.trim() ?? '',
-    );
-  }
-
-  function bodyRows(): string[][] {
-    return Array.from(element.querySelectorAll('tbody tr')).map((row) =>
-      Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent?.trim() ?? ''),
-    );
-  }
-
   function activePage(): string | undefined {
     return element.querySelector('[aria-current="page"]')?.textContent?.trim();
   }
 
   it('renders the title, the columns and the filters inside the header', async () => {
     expect(element.querySelector('h2')?.textContent?.trim()).toBe('List movies');
-    expect(headers()).toEqual(['ID', 'Year', 'Title', 'Winner?']);
+    expect(tableHeaders(element)).toEqual(['ID', 'Year', 'Title', 'Winner?']);
 
     const filterCells = element.querySelectorAll('thead tr[appTableFilters] td');
     expect(filterCells).toHaveLength(4);
@@ -212,13 +177,13 @@ describe('MoviesListPage', async () => {
   it('renders one row per movie with "Yes"/"No" in the Winner? column', async () => {
     await respond({}, page(MOVIES));
 
-    expect(bodyRows()).toEqual([
+    expect(tableBodyRows(element)).toEqual([
       ['1', '1980', "Can't Stop the Music", 'Yes'],
       ['2', '1980', 'Cruising', 'No'],
     ]);
   });
 
-  describe('year filter', async () => {
+  describe('year filter', () => {
     beforeEach(async () => {
       await respond({ page: '0' }, page(MOVIES));
     });
@@ -236,14 +201,14 @@ describe('MoviesListPage', async () => {
       httpMock.expectNone(() => true);
     });
 
-    it('does not send a year with fewer than 4 digits', async () => {
+    it('does not send a year with fewer than 4 digits', () => {
       typeYear('198');
       waitDebounce();
 
       httpMock.expectNone(() => true);
     });
 
-    it('keeps only digits in the field', async () => {
+    it('keeps only digits in the field', () => {
       typeYear('19a8');
 
       expect(yearInput().value).toBe('198');
@@ -260,7 +225,7 @@ describe('MoviesListPage', async () => {
     });
   });
 
-  describe('winner filter', async () => {
+  describe('winner filter', () => {
     beforeEach(async () => {
       await respond({ page: '0' }, page(MOVIES));
     });
@@ -324,13 +289,11 @@ describe('MoviesListPage', async () => {
   it('shows the error state and retries with the same parameters on "Try again"', async () => {
     await respond({ page: '0' }, page(MOVIES));
     selectWinner('Yes');
-    expectRequest().flush('Server error', { status: 500, statusText: 'Server Error' });
+    flushServerError(expectRequest());
     await settle();
 
     const alert = element.querySelector('[role="alert"]');
-    expect(alert?.textContent).toContain(
-      'The server is unavailable at the moment. Please try again later.',
-    );
+    expect(alert?.textContent).toContain(SERVER_ERROR_MESSAGE);
     expect(element.querySelector('nav[aria-label="Pagination"]')).toBeNull();
     // The filters stay available so the user can change them after a failure.
     expect(winnerSelect().value).toBe('true');
@@ -340,13 +303,13 @@ describe('MoviesListPage', async () => {
     await respond({ page: '0', size: '15', year: null, winner: 'true' }, page(MOVIES));
 
     expect(element.querySelector('[role="alert"]')).toBeNull();
-    expect(bodyRows()).toHaveLength(2);
+    expect(tableBodyRows(element)).toHaveLength(2);
   });
 
   it('shows a "no movies" message when there are no movies and no filters', async () => {
     await respond({}, page([], 0, 0));
 
-    expect(bodyRows()).toEqual([['No movies found']]);
+    expect(tableBodyRows(element)).toEqual([['No movies found']]);
     expect(element.querySelector('nav[aria-label="Pagination"]')).toBeNull();
   });
 
@@ -356,7 +319,7 @@ describe('MoviesListPage', async () => {
     waitDebounce();
     await respond({ year: '1950' }, page([], 0, 0));
 
-    expect(bodyRows()).toEqual([
+    expect(tableBodyRows(element)).toEqual([
       ['No movies match the current filters. Try adjusting the year or winner filter.'],
     ]);
     expect(element.querySelector('tbody td')?.getAttribute('colspan')).toBe('4');

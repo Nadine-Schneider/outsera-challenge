@@ -1,46 +1,27 @@
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { API_BASE_URL } from '../../../../core/api/api-base-url.token';
+import {
+  SERVER_ERROR_MESSAGE,
+  TEST_API_BASE_URL,
+  flushServerError,
+  provideApiTesting,
+} from '../../../../../testing/api-testing';
+import {
+  HOWARD_THE_DUCK,
+  LEONARD_PART_6,
+  UNDER_THE_CHERRY_MOON,
+} from '../../../../../testing/movie-fixtures';
+import { tableBodyRows, tableHeaders } from '../../../../../testing/table-queries';
 import { Movie } from '../../../../core/api/models/movie.model';
-import { httpErrorInterceptor } from '../../../../core/interceptors/http-error.interceptor';
 import { WinnersByYearPanel } from './winners-by-year-panel';
 
-const BASE_URL = 'https://api.test/movies';
-const URL = `${BASE_URL}/winnersByYear`;
+const URL = `${TEST_API_BASE_URL}/winnersByYear`;
 
 const INITIAL_MESSAGE = 'Enter a year to see its winners';
 
-const WINNERS_1986: Movie[] = [
-  {
-    id: 36,
-    year: 1986,
-    title: 'Howard the Duck',
-    studios: ['Universal Studios'],
-    producers: ['Gloria Katz'],
-    winner: true,
-  },
-  {
-    id: 37,
-    year: 1986,
-    title: 'Under the Cherry Moon',
-    studios: ['Warner Bros.'],
-    producers: ['Bob Cavallo', 'Joe Ruffalo', 'Steve Fargnoli'],
-    winner: true,
-  },
-];
-
-const WINNERS_1987: Movie[] = [
-  {
-    id: 41,
-    year: 1987,
-    title: 'Leonard Part 6',
-    studios: ['Columbia Pictures'],
-    producers: ['Bill Cosby'],
-    winner: true,
-  },
-];
+const WINNERS_1986: Movie[] = [HOWARD_THE_DUCK, UNDER_THE_CHERRY_MOON];
+const WINNERS_1987: Movie[] = [LEONARD_PART_6];
 
 describe('WinnersByYearPanel', () => {
   let fixture: ComponentFixture<WinnersByYearPanel>;
@@ -48,13 +29,7 @@ describe('WinnersByYearPanel', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(async () => {
-    TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(withInterceptors([httpErrorInterceptor])),
-        provideHttpClientTesting(),
-        { provide: API_BASE_URL, useValue: BASE_URL },
-      ],
-    });
+    TestBed.configureTestingModule({ providers: provideApiTesting() });
     httpMock = TestBed.inject(HttpTestingController);
 
     fixture = TestBed.createComponent(WinnersByYearPanel);
@@ -123,20 +98,8 @@ describe('WinnersByYearPanel', () => {
   async function fail(year: number): Promise<void> {
     const req = httpMock.expectOne((request) => request.url === URL);
     expect(req.request.params.get('year')).toBe(String(year));
-    req.flush('Server error', { status: 500, statusText: 'Server Error' });
+    flushServerError(req);
     await fixture.whenStable();
-  }
-
-  function headers(): string[] {
-    return Array.from(element.querySelectorAll('thead th')).map(
-      (th) => th.textContent?.trim() ?? '',
-    );
-  }
-
-  function bodyRows(): string[][] {
-    return Array.from(element.querySelectorAll('tbody tr')).map((row) =>
-      Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent?.trim() ?? ''),
-    );
   }
 
   it('renders the panel title and an accessible search field', () => {
@@ -150,8 +113,8 @@ describe('WinnersByYearPanel', () => {
   it('makes no request on init and shows the column headers with the initial message', () => {
     httpMock.expectNone(() => true);
 
-    expect(headers()).toEqual(['Id', 'Year', 'Title']);
-    expect(bodyRows()).toEqual([[INITIAL_MESSAGE]]);
+    expect(tableHeaders(element)).toEqual(['Id', 'Year', 'Title']);
+    expect(tableBodyRows(element)).toEqual([[INITIAL_MESSAGE]]);
     expect(element.querySelector('tbody td')?.getAttribute('colspan')).toBe('3');
     expect(element.querySelector('[role="status"]')).toBeNull();
   });
@@ -172,7 +135,7 @@ describe('WinnersByYearPanel', () => {
     TestBed.tick();
 
     httpMock.expectNone(() => true);
-    expect(bodyRows()).toEqual([[INITIAL_MESSAGE]]);
+    expect(tableBodyRows(element)).toEqual([[INITIAL_MESSAGE]]);
   });
 
   it('uses a submit button with a decorative icon inside a search form', () => {
@@ -204,7 +167,7 @@ describe('WinnersByYearPanel', () => {
     pressEnter();
 
     await respond(1987, WINNERS_1987);
-    expect(bodyRows()).toEqual([['41', '1987', 'Leonard Part 6']]);
+    expect(tableBodyRows(element)).toEqual([['41', '1987', 'Leonard Part 6']]);
   });
 
   it('renders one row per winner with Id, Year and Title', async () => {
@@ -212,8 +175,8 @@ describe('WinnersByYearPanel', () => {
     clickSearch();
     await respond(1986, WINNERS_1986);
 
-    expect(headers()).toEqual(['Id', 'Year', 'Title']);
-    expect(bodyRows()).toEqual([
+    expect(tableHeaders(element)).toEqual(['Id', 'Year', 'Title']);
+    expect(tableBodyRows(element)).toEqual([
       ['36', '1986', 'Howard the Duck'],
       ['37', '1986', 'Under the Cherry Moon'],
     ]);
@@ -224,7 +187,7 @@ describe('WinnersByYearPanel', () => {
     clickSearch();
     await respond(1950, []);
 
-    expect(bodyRows()).toEqual([['No winners found for 1950']]);
+    expect(tableBodyRows(element)).toEqual([['No winners found for 1950']]);
     expect(element.querySelector('tbody td')?.getAttribute('colspan')).toBe('3');
     expect(element.textContent).not.toContain(INITIAL_MESSAGE);
   });
@@ -235,9 +198,7 @@ describe('WinnersByYearPanel', () => {
     await fail(1986);
 
     const alert = element.querySelector('[role="alert"]');
-    expect(alert?.textContent).toContain(
-      'The server is unavailable at the moment. Please try again later.',
-    );
+    expect(alert?.textContent).toContain(SERVER_ERROR_MESSAGE);
     expect(element.querySelector('table')).toBeNull();
 
     alert?.querySelector('button')?.click();
@@ -245,7 +206,7 @@ describe('WinnersByYearPanel', () => {
     await respond(1986, WINNERS_1986);
 
     expect(element.querySelector('[role="alert"]')).toBeNull();
-    expect(bodyRows()).toHaveLength(2);
+    expect(tableBodyRows(element)).toHaveLength(2);
   });
 
   it('replaces the previous result when a second year is searched', async () => {
@@ -257,7 +218,7 @@ describe('WinnersByYearPanel', () => {
     clickSearch();
     await respond(1987, WINNERS_1987);
 
-    expect(bodyRows()).toEqual([['41', '1987', 'Leonard Part 6']]);
+    expect(tableBodyRows(element)).toEqual([['41', '1987', 'Leonard Part 6']]);
   });
 
   it('searches again when the same year is submitted twice', async () => {
@@ -268,6 +229,6 @@ describe('WinnersByYearPanel', () => {
     clickSearch();
     await respond(1987, WINNERS_1987);
 
-    expect(bodyRows()).toEqual([['41', '1987', 'Leonard Part 6']]);
+    expect(tableBodyRows(element)).toEqual([['41', '1987', 'Leonard Part 6']]);
   });
 });

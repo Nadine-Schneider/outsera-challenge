@@ -1,8 +1,8 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
-import { API_BASE_URL } from './api-base-url.token';
+import { TEST_API_BASE_URL, provideApiTesting } from '../../../testing/api-testing';
+import { HOWARD_THE_DUCK, UNDER_THE_CHERRY_MOON } from '../../../testing/movie-fixtures';
 import { MovieApiService } from './movie-api.service';
 import { Movie } from './models/movie.model';
 import { Page } from './models/page.model';
@@ -10,38 +10,14 @@ import { MaxMinWinIntervals } from './models/producer-interval.model';
 import { StudioWithWinCount } from './models/studio-with-win-count.model';
 import { YearWithMultipleWinners } from './models/year-with-multiple-winners.model';
 
-const BASE_URL = 'https://api.test/movies';
-
-const howardTheDuck: Movie = {
-  id: 36,
-  year: 1986,
-  title: 'Howard the Duck',
-  studios: ['Universal Studios'],
-  producers: ['Gloria Katz'],
-  winner: true,
-};
-
-const underTheCherryMoon: Movie = {
-  id: 37,
-  year: 1986,
-  title: 'Under the Cherry Moon',
-  studios: ['Warner Bros.'],
-  producers: ['Bob Cavallo'],
-  winner: true,
-};
+const BASE_URL = TEST_API_BASE_URL;
 
 describe('MovieApiService', () => {
   let service: MovieApiService;
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: API_BASE_URL, useValue: BASE_URL },
-      ],
-    });
+    TestBed.configureTestingModule({ providers: provideApiTesting() });
     service = TestBed.inject(MovieApiService);
     httpMock = TestBed.inject(HttpTestingController);
   });
@@ -52,7 +28,7 @@ describe('MovieApiService', () => {
 
   describe('getMovies', () => {
     const page: Page<Movie> = {
-      content: [howardTheDuck],
+      content: [HOWARD_THE_DUCK],
       totalElements: 1,
       totalPages: 1,
       number: 0,
@@ -229,16 +205,16 @@ describe('MovieApiService', () => {
 
     it('returns every movie of an array response', () => {
       const result = requestWinners(1986);
-      httpMock.expectOne(`${url}?year=1986`).flush([howardTheDuck, underTheCherryMoon]);
+      httpMock.expectOne(`${url}?year=1986`).flush([HOWARD_THE_DUCK, UNDER_THE_CHERRY_MOON]);
 
-      expect(result()).toEqual([howardTheDuck, underTheCherryMoon]);
+      expect(result()).toEqual([HOWARD_THE_DUCK, UNDER_THE_CHERRY_MOON]);
     });
 
     it('wraps a single movie object in a list', () => {
       const result = requestWinners(1986);
-      httpMock.expectOne(`${url}?year=1986`).flush(howardTheDuck);
+      httpMock.expectOne(`${url}?year=1986`).flush(HOWARD_THE_DUCK);
 
-      expect(result()).toEqual([howardTheDuck]);
+      expect(result()).toEqual([HOWARD_THE_DUCK]);
     });
 
     it('returns an empty list for a null body', () => {

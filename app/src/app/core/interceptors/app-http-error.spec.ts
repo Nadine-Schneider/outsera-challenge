@@ -1,4 +1,6 @@
-import { AppHttpError, appErrorMessage } from './app-http-error';
+import { HttpErrorResponse } from '@angular/common/http';
+
+import { AppHttpError, appErrorMessage, toAppHttpError } from './app-http-error';
 
 describe('appErrorMessage', () => {
   it('returns the message of an AppHttpError', () => {
@@ -11,5 +13,19 @@ describe('appErrorMessage', () => {
     expect(appErrorMessage(new Error('Boom'))).toBeUndefined();
     expect(appErrorMessage('Boom')).toBeUndefined();
     expect(appErrorMessage(undefined)).toBeUndefined();
+  });
+});
+
+describe('toAppHttpError', () => {
+  it.each([302, 600])('classifies status %i, outside 0, 4xx and 5xx, as unknown', (status) => {
+    const error = toAppHttpError(new HttpErrorResponse({ status, url: 'https://api.test/movies' }));
+
+    expect(error).toBeInstanceOf(AppHttpError);
+    expect(error).toMatchObject({
+      kind: 'unknown',
+      status,
+      message: 'An unexpected error occurred. Please try again.',
+      url: 'https://api.test/movies',
+    });
   });
 });

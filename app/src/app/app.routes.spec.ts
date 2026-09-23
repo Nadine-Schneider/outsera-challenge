@@ -1,23 +1,17 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
+import { provideApiTesting } from '../testing/api-testing';
 import { routes } from './app.routes';
-import { API_BASE_URL } from './core/api/api-base-url.token';
 
 describe('app routes', () => {
   let harness: RouterTestingHarness;
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
-      providers: [
-        provideRouter(routes),
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: API_BASE_URL, useValue: 'https://api.test/movies' },
-      ],
+      providers: [provideRouter(routes), ...provideApiTesting()],
     });
     harness = await RouterTestingHarness.create();
   });

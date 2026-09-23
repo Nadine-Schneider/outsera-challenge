@@ -1,6 +1,7 @@
-import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpClient, HttpRequest, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { throwError } from 'rxjs';
 
 import { AppHttpError } from './app-http-error';
 import { httpErrorInterceptor } from './http-error.interceptor';
@@ -77,5 +78,16 @@ describe('httpErrorInterceptor', () => {
     httpMock.expectOne(URL).flush({ ok: true });
 
     expect(body).toEqual({ ok: true });
+  });
+
+  it('passes an error that is not an HttpErrorResponse through unchanged', () => {
+    const original = new TypeError('Failed to serialize the request body');
+    let received: unknown;
+
+    httpErrorInterceptor(new HttpRequest('GET', URL), () => throwError(() => original)).subscribe({
+      error: (error: unknown) => (received = error),
+    });
+
+    expect(received).toBe(original);
   });
 });

@@ -811,3 +811,177 @@ Mesmo padrão de sincronização zoneless das etapas anteriores.
   função pura `toYearDigits` em `shared/utils/year.ts`, ao lado de `parseYear`, com três testes
   próprios. Os dois handlers só chamam a função, escrevem o valor de volta no campo e atualizam
   o signal. Os testes existentes dos dois componentes passaram sem alteração.
+
+---
+
+## 2026-09-23 — Revisão da suíte de testes e configuração de cobertura
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: revisão da suíte de testes e configuração de cobertura
+Esta é uma etapa de auditoria. Não altere código, exceto para corrigir bugs que
+os novos testes revelarem. Se um teste novo falhar, pare e me avise antes de mudar o código
+de produção.
+
+## Primeira parte: auditoria de requisitos
+Monte uma tabela ligando cada requisito funcional do teste técnico ao teste que o prova,
+com o caminho do arquivo e o nome do `it`. Requisitos a cobrir:
+
+Dashboard
+- tabela com os anos que tiveram mais de um vencedor
+- tabela com os **três** estúdios com mais vitórias
+- tabelas com os produtores de maior e menor intervalo entre vitórias
+- tabela com os vencedores de um ano selecionado por campo de busca
+
+Lista de filmes
+- paginação
+- filtro por ano
+- filtro por vencedor
+
+Navegação
+- menu com links para as duas views
+
+Para cada requisito, indique se a cobertura é: completa, parcial (e o que falta), ou ausente.
+Apresente essa tabela antes de escrever qualquer teste novo.
+
+## Segunda parte: lacunas conhecidas a verificar
+Confirme se existem testes para os casos abaixo. Onde não existirem, escreva-os:
+
+- `winner: false` chega à API como `winner=false` e não é omitido
+- filtro em "todos" **não** envia o parâmetro na query string
+- trocar filtro reseta para a primeira página, assertado pelo parâmetro `page` da requisição
+- top 3 com empate no terceiro lugar, resolvido pelo desempate alfabético
+- `min` e `max` com múltiplos registros empatados renderizam todos
+- `/winnersByYear` com resposta vazia, e com mais de um vencedor
+- o painel de busca não dispara requisição na inicialização
+- cada painel do dashboard falha isoladamente, sem derrubar os demais
+- a mensagem do `AppHttpError` aparece na tela no estado de erro
+
+## Terceira parte: qualidade dos testes existentes
+Identifique e corrija:
+- testes que não têm nenhuma asserção, ou cuja asserção passaria mesmo com o código quebrado
+- testes que dependem de ordem de execução ou de estado compartilhado entre `it`
+- uso de `any` ou de casts nos arquivos de teste
+- specs sem `httpMock.verify()` no `afterEach`
+- duplicação de setup que caberia num helper em `src/testing/`
+
+Não aumente cobertura escrevendo testes triviais de getters ou de renderização de texto
+estático. Cobertura só conta se prova comportamento.
+
+## Quarta parte: cobertura
+- Rode `npm test -- --coverage` e apresente os números atuais por categoria.
+- Configure o threshold no `angular.json` (ou no arquivo de config do Vitest) com valores
+  ligeiramente **abaixo** dos números atuais, de modo que o build não quebre hoje mas
+  qualquer regressão futura seja barrada. Diga quais valores escolheu e por quê.
+- Exclua da cobertura o que não faz sentido medir: `main.ts`, arquivos de environment,
+  `*.spec.ts` e barrels.
+- Liste os arquivos com cobertura mais baixa e diga, para cada um, se a lacuna é relevante
+  ou aceitável. Não corrija sem me consultar.
+
+# Critérios de aceite
+- Tabela de requisitos versus testes apresentada antes de qualquer alteração.
+- `npm run lint`, `npm test` e `npm run build` passam sem erros e sem avisos.
+- `npm test -- --coverage` passa com o threshold configurado.
+- Nenhum `any` nos arquivos de teste.
+- Nenhuma alteração em código de produção sem eu ter autorizado.
+````
+
+**Resultado:**
+
+- **Auditoria de requisitos.** A tabela de requisitos versus testes foi apresentada antes de
+  qualquer alteração. Sete dos oito requisitos estavam com cobertura completa; o de intervalos de
+  produtores estava parcial, porque empates em `min` só eram testados no serviço, não na tela.
+- **Lacunas.** Já havia testes para `winner=false`, a omissão do parâmetro na opção "todos", a
+  volta para `page=0` ao trocar filtro, o desempate alfabético do top 3, `winnersByYear` vazio e
+  com vários vencedores, a ausência de requisição na inicialização da busca e a mensagem do
+  `AppHttpError` na tela. Testes novos: empates em `min` renderizados por completo
+  (`producer-intervals-panel.spec.ts`); falha isolada de cada painel, com os outros dois
+  renderizando seus dados (`it.each` em `dashboard.page.spec.ts`); e a busca por ano funcionando
+  com os três painéis de dados em erro. Todos passaram de primeira, então nenhum bug de produção
+  apareceu.
+- **Qualidade.**
+  - `movies-list.page.spec.ts`: o `afterEach` rodava `httpMock.verify()` antes de
+    `vi.useRealTimers()`; se o `verify()` falhasse, os fake timers vazavam para os testes
+    seguintes. A ordem foi invertida.
+  - `movies-list.page.spec.ts`: três `describe` com callback `async` e dois `it` `async` sem
+    `await` perderam o `async`.
+  - `dashboard.page.spec.ts`: o `afterEach` descartava todas as requisições (`match(() => true)`)
+    antes do `verify()`, o que tornava o `verify()` inócuo. Agora cada teste responde às próprias
+    requisições e o `afterEach` só verifica.
+  - Nenhum `any` nem cast nos specs (a regra de lint `consistent-type-assertions: never` já
+    barra casts). Todo spec que faz HTTP tem `httpMock.verify()` no `afterEach`.
+- **Helpers em `src/testing/`.**
+  - `api-testing.ts`: `provideApiTesting()` (HTTP como no `app.config.ts`, com interceptor e
+    `HttpTestingController`), `TEST_API_BASE_URL`, `flushServerError()` e `SERVER_ERROR_MESSAGE`.
+  - `table-queries.ts`: `tableHeaders()` e `tableBodyRows()`.
+  - `movie-fixtures.ts`: os filmes usados em vários specs.
+  - Oito specs passaram a usar os helpers. `src/testing/**` foi excluído do `tsconfig.app.json`
+    e incluído no `tsconfig.spec.json`.
+- **Cobertura.** Foi instalado `@vitest/coverage-v8@4.1.11` como devDependency, com autorização.
+  - No `angular.json`, `coverageInclude` passou a ser `src/**/*.ts` + `src/**/*.html`, para
+    medir também arquivos que nenhum teste importa. `coverageExclude` cobre `main.ts`,
+    `index.html`, `environments/**`, `testing/**`, `*.spec.ts` e `index.ts`.
+  - Números: statements 99,2%, branches 99,14%, functions 100%, lines 98,79%.
+  - Thresholds globais: 98 / 98 / 99 / 97, a parte inteira de cada número menos um ponto.
+    Com um threshold de 99,5 em statements, o comando falhou como esperado.
+  - O README ganhou o comando de cobertura.
+- 157 testes passando (eram 152); `npm run lint`, `prettier --check`, `npm run build` e
+  `npm test -- --coverage` sem erros nem avisos.
+
+---
+
+## 2026-09-23 — Ajustes na revisão de testes e cobertura
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+````markdown
+Ajustes na etapa 9:
+
+1. Escreva o teste de `app.config.ts`: monte a aplicação com a configuração real de
+   providers (não o helper de testes) e verifique que uma requisição com erro chega à
+   aplicação como `AppHttpError`, provando que o interceptor está registrado, e que a
+   `API_BASE_URL` está provida com o valor do environment.
+2. Cubra as duas lacunas baratas de erro:
+   - interceptor: um erro que não é `HttpErrorResponse` passa adiante sem alteração;
+   - `app-http-error.ts`: status fora de 0, 4xx e 5xx resulta no tipo `unknown`.
+3. Remova `toPaginationState` de `shared/utils/pagination.ts` e o spec correspondente,
+   já que a função não é usada em produção. Confirme que nada mais a referencia.
+4. Recalcule a cobertura após essas mudanças e ajuste os thresholds pela mesma regra
+   (parte inteira menos um ponto). Relate os novos números.
+5. Corrija a nota sobre sincronização com query params no relatório e no ai-log: ela não
+   ficou "para a próxima etapa", foi deliberadamente descartada do escopo do projeto.
+````
+
+**Resultado:**
+
+- `src/app/app.config.spec.ts`: o TestBed recebe `appConfig.providers` mais
+  `provideHttpClientTesting()`, que só troca o backend e mantém os interceptors. Dois testes:
+  - `API_BASE_URL` é igual a `environment.apiBaseUrl`;
+  - uma chamada do `MovieApiService` respondida com 503 chega como `AppHttpError` do tipo
+    `server`, na URL montada a partir do environment.
+- `http-error.interceptor.spec.ts`: um erro que não é `HttpErrorResponse` (um `TypeError`)
+  passa pelo interceptor sem alteração; o teste confere que é a mesma instância.
+- `app-http-error.spec.ts`: `toAppHttpError` classifica os status 302 e 600 como `unknown`, com
+  a mensagem genérica e a URL preservada.
+- `toPaginationState` e a interface `PaginationState` foram removidos de
+  `shared/utils/pagination.ts`, junto com os cinco testes. Nada mais em `src/` os referencia; a
+  única menção restante é o registro histórico da etapa de models, neste log. O `toUiPage`
+  continua exportado e testado, mas também deixou de ter uso em produção.
+- **Sincronização com query params: fora do escopo.** A sincronização dos filtros e da página da
+  lista com os query params da rota foi deliberadamente descartada do escopo do projeto, e não
+  adiada para uma etapa futura. O relatório da etapa anterior dizia o contrário; a correção fica
+  registrada aqui.
+- Cobertura: statements 99,59%, branches 100%, functions 100%, lines 99,39%. O único arquivo
+  abaixo de 100% é `app.ts`, o componente raiz que só renderiza o shell.
+  - Thresholds, pela mesma regra (parte inteira menos um ponto): statements 98, branches 99,
+    functions 99, lines 98.
+- 157 testes passando: saíram os cinco de `toPaginationState` e entraram cinco novos.
+  `npm run lint`, `prettier --check`, `npm run build` e `npm test -- --coverage` passam sem
+  erros nem avisos.

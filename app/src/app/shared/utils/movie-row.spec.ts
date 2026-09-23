@@ -1,23 +1,5 @@
-import { Movie } from '../../core/api/models/movie.model';
+import { CANT_STOP_THE_MUSIC, CRUISING } from '../../../testing/movie-fixtures';
 import { toMovieRow, toMovieRows } from './movie-row';
-
-const CANT_STOP_THE_MUSIC: Movie = {
-  id: 1,
-  year: 1980,
-  title: "Can't Stop the Music",
-  studios: ['Associated Film Distribution'],
-  producers: ['Allan Carr'],
-  winner: true,
-};
-
-const CRUISING: Movie = {
-  id: 2,
-  year: 1980,
-  title: 'Cruising',
-  studios: ['Lorimar Productions', 'United Artists'],
-  producers: ['Jerry Weintraub'],
-  winner: false,
-};
 
 describe('toMovieRow', () => {
   it('keeps id, year and title and shows a winner as "Yes"', () => {

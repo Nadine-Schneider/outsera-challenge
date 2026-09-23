@@ -62,3 +62,143 @@ entidades, importação de CSV ou endpoints de negócio nesta etapa.
 
 - Foram fixados os pacotes do núcleo do NestJS (`@nestjs/common`, `@nestjs/core`, `@nestjs/platform-express` e `@nestjs/testing`) na faixa `~11.2.5`, no lugar da faixa anterior `^11.0.1`. Isso garante correções de segurança, entre elas a CVE-2026-35515 (injeção em SSE) e a CVE-2026-40879 (DoS no transporte TCP), e aceita apenas atualizações de patch. O projeto permanece no Nest 11 por uma restrição de tooling: o CLI 12 adota ESM, Vitest e oxlint, o que conflita com a stack definida neste projeto (Jest, Supertest e TypeScript CommonJS). Também foi adicionado ao `package.json` um `overrides` que força `multer` para `^2.3.0`. O `@nestjs/platform-express` 11.x embute o multer 2.2.0, que é afetado por quatro vulnerabilidades de alta severidade: GHSA-wc9g-mqfw-jrwm, GHSA-qfvm-cv95-jqjf, GHSA-qvfw-j98x-7q72 e GHSA-535w-7cp7-47q4. O override não deve ser removido enquanto o projeto estiver no Nest 11. Ele só poderá sair em uma futura migração para o Nest 12, que já inclui um multer corrigido.
 - No `tsconfig.json` foram declarados explicitamente os tipos globais com `"types": ["node", "jest"]` e removido o `"baseUrl": "./"` herdado do template do Nest CLI. O motivo é a divergência entre o TypeScript que compila o projeto (5.9.3, o do `package.json`) e o que o editor usa (6.0.3, embutido no VS Code). Sem a declaração, o editor montava a aplicação sem `@types/jest` nem `@types/node` e acusava `Cannot find name 'describe'` no teste e2e, enquanto `npm run build` e `npm run test:e2e` passavam normalmente. O `baseUrl` saiu porque o TypeScript 6.0 já o sinaliza como descontinuado.
+
+---
+
+## 2026-09-22 — Modelo de dados e importação do CSV
+
+**Ferramenta:** Claude Code (Opus 5.5)
+
+**Prompt:**
+
+```markdown
+Leia o CLAUDE.md antes de começar.
+
+# Tarefa: modelo de dados e importação do CSV
+
+## 1. Entidades (src/movies/entities)
+
+- `Movie`: id (PK gerado), year (int), title (string), winner (boolean, default false).
+- `Producer`: id (PK gerado), name (string, único).
+- `Studio`: id (PK gerado), name (string, único).
+- Relações N:N `movie_producers` e `movie_studios`, com nomes de tabela e colunas explícitos.
+- Índices em `movies.winner` e `movies.year`.
+
+## 2. Parser de nomes (src/csv-import)
+
+Função pura que recebe o conteúdo bruto de `producers` ou `studios` e devolve a lista de nomes:
+
+- separa por `, and`, `,` e `and` (cobrindo "A, B, and C", "A, B and C", "A and B");
+- aplica trim, normaliza espaços internos repetidos, descarta strings vazias e remove duplicados
+  preservando a ordem de aparição;
+- não deve quebrar nomes que apenas contenham a sequência "and" dentro de uma palavra
+  (ex.: "Andrew Bergman", "Alexander").
+
+## 3. Serviço de importação (src/csv-import)
+
+- Executa no bootstrap da aplicação, via `OnApplicationBootstrap`.
+- Lê o arquivo indicado por `MOVIELIST_CSV_PATH` usando `csv-parse`, com as colunas mapeadas pelo
+  cabeçalho, tratando BOM, CRLF, espaços em volta dos valores e linhas em branco.
+- `winner` é verdadeiro quando o valor, após trim e sem diferenciar maiúsculas, é `yes`; qualquer
+  outro valor (inclusive vazio) é falso.
+- Reaproveita `Producer` e `Studio` já existentes pelo nome, em vez de duplicar registros.
+- Roda dentro de uma transação, com inserts em lote (não um insert por linha).
+- Falha a inicialização com mensagem clara se o arquivo não existir ou se faltar alguma coluna
+  obrigatória do cabeçalho.
+- Ignora, com log de warning contendo o número da linha, registros com ano ausente ou não numérico
+  ou com título vazio.
+- Ao final, loga um resumo: quantidade de filmes, produtores e estúdios importados.
+
+## 4. Teste de integração (test/csv-import.e2e-spec.ts)
+
+Sobe o AppModule completo e, consultando o `DataSource`, verifica:
+
+- com `data/Movielist.csv`: 206 filmes, 42 vencedores, 359 produtores e 59 estúdios;
+- que "Andrew Bergman" e "Mike Lobell" existem como produtores separados, e que não existe nenhum
+  produtor cujo nome contenha " and ";
+- com uma fixture em `test/fixtures` cobrindo formatos de separador e variações de `winner`
+  (`Yes`, `yes `, vazio): os nomes e o flag de vencedor são interpretados corretamente;
+- com uma fixture contendo uma linha inválida: a aplicação sobe e importa apenas as linhas válidas;
+- que um `MOVIELIST_CSV_PATH` inexistente impede a inicialização, com erro claro.
+
+Mantenha o teste de fumaça existente passando.
+
+# Critérios de aceite
+
+- `npm run build`, `npm run lint` e `npm run test:e2e` passam sem erros.
+- `npm run start:dev` sobe a aplicação e loga o resumo da importação.
+- Nenhum `*.spec.ts` foi criado em `src/`.
+```
+
+**Resultado:**
+
+- `src/movies/entities/`: entidades com nomes explícitos de tabelas, colunas de junção
+  (`movie_id`, `producer_id`, `studio_id`) e índices (`idx_movies_year`,
+  `idx_movies_winner`); `name` único em `producers` e `studios`. `MoviesModule` registra as
+  entidades com `TypeOrmModule.forFeature`.
+- `src/csv-import/name-list.parser.ts`: `parseNameList()` separa por `, and`, `,` e `and`
+  (o "and" precisa ser palavra isolada, então "Andrew Bergman" e "Alexander" ficam intactos),
+  normaliza espaços, descarta vazios e remove duplicados preservando a ordem.
+- `src/csv-import/csv-import.service.ts`: lê o arquivo com `csv-parse/sync` (`bom`, `trim`,
+  `skip_empty_lines`, `skip_records_with_empty_values`, `relax_column_count`), mapeia as
+  colunas pelo cabeçalho (sem diferenciar maiúsculas) e valida as obrigatórias; ignora com
+  warning (número da linha) ano ausente/não numérico e título vazio; persiste tudo numa
+  transação em lotes de 500 linhas, reaproveitando produtores e estúdios existentes via
+  `INSERT OR IGNORE` + leitura dos ids; loga o resumo da importação.
+- Como o driver SQLite do TypeORM não devolve os ids de um INSERT com várias linhas, os ids
+  dos filmes são lidos de volta em ordem (`id > último id anterior`), com verificação da
+  quantidade.
+- `test/csv-import.e2e-spec.ts` + `test/utils/create-test-app.ts`: cada cenário sobe o
+  `AppModule` completo com seu `MOVIELIST_CSV_PATH`. Como o `ConfigModule` valida o ambiente
+  uma única vez, ao ser carregado, o helper carrega a aplicação num registro de módulos
+  isolado (`jest.isolateModules` + `jest.requireActual`).
+- Fixtures: `name-formats.csv` (BOM, CRLF, cabeçalho fora de ordem e com espaços, linhas em
+  branco, separadores variados, `Yes`/`yes `/vazio/`no`/`YES`), `invalid-rows.csv` e
+  `missing-column.csv`. `.gitattributes` marca `test/fixtures/*.csv` como `-text` para o git
+  não converter as quebras de linha.
+- Verificações: `npm run build`, `npm run lint` e `npm run test:e2e` (9 testes) passaram; a
+  aplicação subiu com `data/Movielist.csv` e logou 206 filmes (42 vencedores), 359 produtores
+  e 59 estúdios.
+
+**Ajustes manuais:**
+
+- O separador `and` do parser de nomes (`src/csv-import/name-list.parser.ts`) passou a ignorar
+  maiúsculas e minúsculas: `and`, `AND`, `And`, `aNd` e qualquer outra variação separam nomes,
+  tanto isolados (`A AND B`) quanto após vírgula (`A, B, And C`). Antes, só o `and` minúsculo
+  separava, e um valor como `Producer G AND Producer H` virava um único produtor. O "and"
+  continua precisando ser uma palavra isolada entre espaços, então nomes como "Andrew
+  Bergman", "Andy Sandler" e "Brandon Anderson" seguem intactos. A fixture
+  `test/fixtures/name-formats.csv` ganhou uma linha com essas variações, coberta pelo teste
+  `test/csv-import.e2e-spec.ts`.
+- `testTimeout` da suíte e2e (`test/jest-e2e.json`) elevado de 5 s (padrão do Jest) para
+  30 s. Cada cenário carrega o `AppModule` completo num registro de módulos isolado e, com o
+  cache do ts-jest frio, o `beforeAll` chegou a passar de 5 s, derrubando os testes do
+  cenário.
+- Registros duplicados no CSV passaram a ser descartados na importação
+  (`src/csv-import/csv-import.service.ts`). Uma linha é duplicada quando tem o mesmo `year`,
+  `title`, `studios` e `producers` de uma linha anterior; só a primeira ocorrência é gravada
+  e as demais são ignoradas com warning (`Skipping line N: duplicate of line M.`). A
+  comparação é feita depois do parse: título e nomes com trim e espaços normalizados, e as
+  listas de estúdios e produtores comparadas como conjuntos, sem importar a ordem ("A and B"
+  equivale a "B, A"). O `winner` não faz parte da chave, então uma repetição com outro valor
+  de `winner` também é descartada e vale o da primeira linha. Sem isso, uma linha repetida de
+  um filme vencedor contaria duas vitórias no mesmo ano para cada produtor e geraria um
+  intervalo 0 falso. A fixture `test/fixtures/duplicate-rows.csv` cobre duplicados com ordem
+  e espaços diferentes e com `winner` diferente, além de linhas que diferem só no ano, só no
+  título, só no estúdio ou só nos produtores (essas são mantidas).
+- Os ids dos filmes passaram a ser atribuídos pela aplicação (`saveMovies` em
+  `src/csv-import/csv-import.service.ts`). Como o driver SQLite do TypeORM não devolve os ids
+  de um INSERT com várias linhas, a versão anterior gravava os filmes e lia os ids de volta
+  (`id > maior id anterior`, em ordem de id), associando-os pela posição na lista. Isso
+  dependia de o SQLite numerar as linhas na ordem do `VALUES`. Agora, dentro da transação, a
+  aplicação lê o maior id existente, atribui `maior id + 1`, `+ 2`, ... a cada filme, envia
+  esses ids no INSERT em lote e usa os mesmos valores para montar `movie_producers` e
+  `movie_studios`. O banco não escolhe nenhum id e a consulta de leitura de volta deixou de
+  existir; se algum id já estiver ocupado, o INSERT falha por chave primária e a transação
+  inteira é desfeita, em vez de gravar vínculos errados em silêncio. A entidade continua com
+  `@PrimaryGeneratedColumn`, e o TypeORM envia o id explícito no INSERT para o SQLite. O
+  teste `test/csv-import.e2e-spec.ts` ganhou o cenário "with more movies than a single insert
+  batch": 1.201 filmes (três lotes de 500), gerados num CSV temporário, com verificação de ids
+  sequenciais na ordem do arquivo e dos produtores e estúdios de cada filme. Invertendo os
+  ids devolvidos por `saveMovies`, 4 testes falham, o que confirma que desalinhamentos são
+  detectados.

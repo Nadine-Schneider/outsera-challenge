@@ -1,0 +1,9 @@
+﻿ Title ; Year ;winner;producers;studios
+Movie A;2000;Yes;Producer A, Producer B, and Producer C;Studio X, Studio Y, and Studio Z
+
+  Movie B  ; 2001 ;yes ;Producer A, Producer B and Producer D;Studio X and Studio W
+Movie C;2002;;Andrew Bergman and Alexander   Payne;Studio Y
+Movie D;2003;no;Producer E,  Producer E , Producer F;Studio Z, Studio Z
+Movie E;2004;YES;Brandon Anderson;Studio W
+Movie F;2005;;Producer G AND Producer H, aNd Andy Sandler;Studio W And Studio X, AND Studio Y
+   

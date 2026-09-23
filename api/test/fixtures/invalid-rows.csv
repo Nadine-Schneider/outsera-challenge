@@ -1,0 +1,6 @@
+year;title;studios;producers;winner
+2000;Valid One;Studio A;Producer A;yes
+;No Year;Studio A;Producer B;yes
+20X1;Bad Year;Studio A;Producer C;
+2002;;Studio A;Producer D;yes
+2003;Valid Two;Studio B;Producer A;yes
